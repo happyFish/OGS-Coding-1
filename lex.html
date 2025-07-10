@@ -1,4 +1,5 @@
 <html>
+<!--PISS OFF HACKER.-->
 
 <head>
     <style>
@@ -21,19 +22,67 @@
         img {
             height: 100%
         }
+
+        #killer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+
+        }
+
+        #killer * {
+            height: 100%;
+            width: 100%;
+        }
     </style>
     <title>pick your poison</title>
 </head>
 
 <body>
     <h1> click whatever button you want</h1>
-    <div id="buttons"> <img
+    <div id="killer">
+        <video autoplay>
+            <source src="error.mp4">
+        </video>
+    </div>
+    <div id="buttons">
+        <img id="kill-b"
             src="https://encrypted-tbn1.gstatic.com/shopping?q=tbn:ANd9GcSl_0B2IPDKn7TnIh514UP5ddv02T70HGw4TdT-ptGMt0EieRRaMQlWZfuwucfaWBEk08XvH1tlqhCM8ALaWuVHl_iOiTndwaklOCpSyn0V&usqp=CAc">
-        <a href="https://youtu.be/3at_m1J1O4I">
+        <a id="link" href="https://youtu.be/3at_m1J1O4I">
             <img
                 src="https://encrypted-tbn1.gstatic.com/shopping?q=tbn:ANd9GcSl_0B2IPDKn7TnIh514UP5ddv02T70HGw4TdT-ptGMt0EieRRaMQlWZfuwucfaWBEk08XvH1tlqhCM8ALaWuVHl_iOiTndwaklOCpSyn0V&usqp=CAc">
         </a>
     </div>
+    <script>
+        let kill = document.querySelector('#kill-b');
+        let killer = document.querySelector('#killer');
+        let href = document.querySelector('#link');
+        let vid = document.querySelector('video');
+        let password = window.location.search.split('=')[1];
+
+        let RANDOMIZE_BUTTONS = function () {
+            if (Math.random() > 0.5) {
+                console.log('randomizing');
+                kill.parentElement.appendChild(kill);
+            }
+        }
+        if (window.location.search == '') {
+            RANDOMIZE_BUTTONS()
+        } else if (password !== 'password') {
+            window.location = 'https://youtu.be/RfiQYRn7fBg g'
+        }
+
+        let killIt = function () {
+            killer.style.display = 'block';
+            vid.play();
+            killer.requestFullscreen();
+        };
+
+        kill.addEventListener('click', killIt);
+    </script>
 </body>
 
 </html>
