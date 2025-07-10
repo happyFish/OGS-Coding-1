@@ -7,10 +7,13 @@
     <button id="btn">Click me</button>
 
     <script>
-        let btn = document.querySelector('#btn');
-        btn.addEventListener('click', function () {
-            alert('Button clicked!');
-        });
+        const $ = document.querySelector;
+        let btn = $('#btn');
+
+        let clicked = function () {
+            // Do something!
+        }
+        btn.addEventListener('click', clicked);
     </script>
 </body>
 
