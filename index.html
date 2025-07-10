@@ -4,11 +4,76 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OGS Web Dev Camp - 2025</title>
-    <!-- <link rel="stylesheet" href="styles.css"> -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        ul {
+            display: flex;
+            gap: 0.5rem;
+            /* padding: 0; */
+            /* margin: 0; */
+        }
+
+        li {
+            margin: 0 0.5rem;
+            /* list-style: none; */
+        }
+
+        #project {
+            width: 100%;
+            border: none;
+            margin-top: 1rem;
+            height: 70vh;
+        }
+
+        .active {
+            color: green;
+        }
+    </style>
 </head>
 
 <body>
-    Hiii
+    <main class="container">
+        <h1>OGS Web Dev – Summer 2025</h1>
+        <p>Welcome to the OGS Web Dev Camp 2025! In this camp, we learned about the basics of Web Development, including
+            HTML, CSS, and JavaScript</p>
+        <h2>Student Projects</h2>
+
+        <ul id="student-list">
+            <!-- Student links will be dynamically added here -->
+        </ul>
+        <iframe id="project"></iframe>
+    </main>
+
+    <script>
+        const students = ['adamo', 'felix', 'gabe', 'hudson', 'lex', 'luca', 'miles', 'milo', 'oliver'];
+
+        // Shuffle the array using Fisher-Yates algorithm
+        for (let i = students.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [students[i], students[j]] = [students[j], students[i]];
+        }
+        const studentList = document.getElementById('student-list');
+        const projectFrame = document.getElementById('project');
+
+        students.forEach(student => {
+            const studentItem = document.createElement('li');
+            const studentLink = document.createElement('a');
+            studentLink.addEventListener('click', function (event) {
+                event.preventDefault();
+                // Remove 'active' class from all links
+                const activeLinks = Array.from(document.querySelectorAll('#student-list a.active'));
+                activeLinks.forEach(link => link.classList.remove('active'));
+                event.target.classList.add('active');
+
+                projectFrame.src = `./${student}.html`;
+            });
+            studentLink.href = `./${student}.html`;
+            studentLink.textContent = student.charAt(0).toUpperCase() + student.slice(1);
+            studentItem.appendChild(studentLink);
+            studentList.appendChild(studentItem);
+        });
+
+    </script>
 
 </body>
 
