@@ -12,7 +12,8 @@
         }
 
         h1 {
-            background-color: aliceblue text-align: center;
+            background-color: aliceblue;
+            text-align: center;
         }
 
         .video-img {
@@ -34,11 +35,29 @@
         #drift {
             width: 100%
         }
+
+        #hidden-image {
+            display: none;
+        }
     </style>
 </head>>
 
 <body>
     <h1> BMW M 5 SERIES</h1>
+    <button id="btn">click here for video</button>
+    <iframe id="hidden-image" width=" 853" height="480" src="https://www.youtube.com/embed/iZt7Fwu91FI"
+        title="BMW M5 Competition (1200 Hp) - Wild Sedan in details" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    <script>
+        let btn = document.querySelector('#btn');
+        let img = document.querySelector('#hidden-image');
+        btn.addEventListener('click', function () {
+            img.style.display = 'block';
+        });
+    </script>
+
+
     <p>The BMW M5 is a super high-performance variant of the BMW 5 Series marketed under the BMW M sub-brand. It is
         considered an iconic vehicle in the sports saloon category.[1][2] The M5 has always been produced in the saloon
         (sedan, US English) body style, but in some countries the M5 has also been available as an estate/touring
