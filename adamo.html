@@ -48,12 +48,15 @@
     <iframe id="hidden-image" width=" 853" height="480" src="https://www.youtube.com/embed/iZt7Fwu91FI"
         title="BMW M5 Competition (1200 Hp) - Wild Sedan in details" frameborder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe> <audio id="audio"
+        src="audio/car-drifting-101soundboards.mp3"></audio>
     <script>
         let btn = document.querySelector('#btn');
         let img = document.querySelector('#hidden-image');
+        let audio = document.querySelector("#audio");
         btn.addEventListener('click', function () {
             img.style.display = 'block';
+            audio.play();
         });
     </script>
 
