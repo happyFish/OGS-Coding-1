@@ -28,18 +28,36 @@
             width: 30%;
         }
 
-        .short-image img {
+        .short-image i .short-image img {
             width: 70%;
         }
 
         #drift {
             width: 100%
         }
+
+        #hidden-image {
+            display: none;
+        }
     </style>
 </head>>
 
 <body>
     <h1> BMW M 5 SERIES</h1>
+    <button id="btn">click here for video</button>
+    <iframe id="hidden-image" width=" 853" height="480" src="https://www.youtube.com/embed/iZt7Fwu91FI"
+        title="BMW M5 Competition (1200 Hp) - Wild Sedan in details" frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    <script>
+        let btn = document.querySelector('#btn');
+        let img = document.querySelector('#hidden-image');
+        btn.addEventListener('click', function () {
+            img.style.display = 'block';
+        });
+    </script>
+
+
     <p>The BMW M5 is a super high-performance variant of the BMW 5 Series marketed under the BMW M sub-brand. It is
         considered an iconic vehicle in the sports saloon category.[1][2] The M5 has always been produced in the saloon
         (sedan, US English) body style, but in some countries the M5 has also been available as an estate/touring
@@ -61,6 +79,10 @@
     <div class="video-img short-image">
         <iframe width=" 329" height="585" src="https://www.youtube.com/embed/mPnNDJ7GP9I"
             title="Bmw M5 G90 2025 drift 👌 #bmw #bmwm5competition" frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        <iframe width="329" height="585" src="https://www.youtube.com/embed/jvw0E-NJpcY"
+            title="Bmw vs Audi vs Mercedes || #bmw #mercedes #audi #rallycar #rallyrace" frameborder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
         <img src="https://www.cnet.com/a/img/resize/a957cc42f9caaf45d6b6a0d06fe5eef4d54c2b7f/hub/2018/01/08/9f0329e4-861f-4604-85a9-d28ece245fb2/r6c3952.jpg?auto=webp&fit=crop&height=675&width=1200"

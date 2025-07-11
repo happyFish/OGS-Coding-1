@@ -1,0 +1,29 @@
+<html>
+    <head>
+    </head>
+
+    <body>
+        <button id="btn">click me for food</button>
+        <button id="wow">click me for water</button>
+        <button id="diet">click me for NO food OR water</button>
+        <script>
+            let btn = document.querySelector('#btn');
+            btn.addEventListener('click', function () {
+                alert('food');
+            });
+
+            let wow = document.querySelector('#wow');
+            wow.addEventListener('click', function () {
+                alert('water');
+            });
+
+            let diet = document.querySelector('#diet');
+            diet.addEventListener('click', function () {
+                alert('diet');
+            });
+            
+        </script>
+
+    </body>
+    `
+</html>

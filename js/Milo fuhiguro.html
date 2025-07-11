@@ -1,0 +1,39 @@
+<html>
+
+<head>
+
+    <style>
+        #image {
+            display: none;
+        }
+    </style>
+
+
+</head>
+
+
+
+<body>
+    <button id="button">If you wish to see true horror...</button>
+
+    <img src="https://i.ytimg.com/vi/V4OfsdmKTS4/maxresdefault.jpg" id="image" />
+
+
+
+    <script>
+        let button = document.querySelector('#button');
+        let img = document.querySelector('#image');
+        let showImg = function () {
+            // show the image
+            img.style.display = 'block';
+        }
+        button.addEventListener('click', showImg);
+
+
+    </script>
+
+</body>
+
+
+
+</html>

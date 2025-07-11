@@ -1,0 +1,29 @@
+<html>
+
+<head>
+    <style>
+        #hidden-image {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="btn">Click me</button>
+    <img id="hidden-image"
+        src="https://img.freepik.com/free-photo/closeup-scarlet-macaw-from-side-view-scarlet-macaw-closeup-head_488145-3540.jpg?semt=ais_hybrid&w=740"
+        alt="Hidden Image">
+
+    <script>
+        let btn = document.querySelector('#btn');
+        let img = document.querySelector('#hidden-image');
+
+        let showImg = function () {
+            // Show the image
+            img.style.display = 'block';
+        }
+        btn.addEventListener('click', showImg);
+    </script>
+</body>
+
+</html>
