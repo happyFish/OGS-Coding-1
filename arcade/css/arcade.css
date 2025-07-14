@@ -1,0 +1,49 @@
+body {
+    background-color: #222;
+    background-image: url('https://as2.ftcdn.net/v2/jpg/08/65/94/69/1000_F_865946990_ZipFK7hztxjXEZFnoqnbiLW2lntjk5JR.jpg');
+    background-attachment: fixed;
+    background-size: cover;
+    font-family: 'Retro Font', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    flex-direction: column;
+}
+
+.arcade-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    max-width: 1200px;
+    margin-bottom: 25px;
+}
+
+.arcade-machine {
+    background-color: #444;
+    border: 5px solid #f00;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.3s;
+    box-shadow: 0 0 20px #f00, 0 0 40px #0ff inset;
+    cursor: pointer;
+}
+
+.arcade-machine:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 40px #ff0, 0 0 60px #0ff inset;
+}
+
+.arcade-machine h2 {
+    font-size: 24px;
+    margin: 0;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px #0ff, 0 0 4px #f00;
+}
+
+@font-face {
+    font-family: 'Retro Font';
+    src: url('../assets/fonts/retro-font.ttf') format('truetype');
+}
