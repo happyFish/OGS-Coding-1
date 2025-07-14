@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Donald Trump 3D Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #hearts {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: red;
+            font-size: 2em;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="hearts"></div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let player, npcs = [];
+        let npcHealth = new Map();
+        let hearts = 5; // Start with 5 hearts
+        let maxHearts = 5;
+
+        let hitFlash = 0;
+        let canPunch = true;
+        let punchCooldown = 400;
+        let keys = {};
+        let punching = false;
+        let punchAnimTime = 0;
+        const punchAnimDuration = 150; // ms
+        let invincible = false;
+        let invincibleTime = 800; // ms
+        let lastHit = 0;
+        let deadNPCs = []; // Add this at the top with other variables
+        let velocity = new THREE.Vector3(0, 0, 0);
+        const maxSpeed = 0.3;
+        const accel = 0.02;
+        const friction = 0.9;
+
+        let npcKillCount = 0;
+        let giantNPC = null;
+        let giantNPCHits = 0;
+
+        function loadTexture(url) {
+            return new THREE.TextureLoader().load(url);
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+
+            // Skybox
+            scene.background = loadTexture('https://res.cloudinary.com/aenetworks/image/upload/c_fill,ar_2,w_1920,h_960,g_auto/dpr_auto/f_auto/q_auto:eco/v1/gettyimages-938823062?_a=BAVAZGDX0');
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Floor with green color
+            const floorGeo = new THREE.PlaneGeometry(100, 100);
+            const floorMat = new THREE.MeshPhongMaterial({ color: 0x228B22 }); // green
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            // scene.add(floor);
+
+            // Lighting
+            const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambient);
+
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(10, 20, 10);
+            light.castShadow = true;
+            scene.add(light);
+
+            // Player (Trump) with face texture
+            const trumpTexture = loadTexture('https://upload.wikimedia.org/wikipedia/commons/5/56/Donald_Trump_official_portrait.jpg');
+            const playerGeo = new THREE.BoxGeometry(1, 2, 1);
+            const playerMats = [
+                new THREE.MeshPhongMaterial({ color: 0xffcc00 }), // right
+                new THREE.MeshPhongMaterial({ color: 0xffcc00 }), // left
+                new THREE.MeshPhongMaterial({ color: 0xffcc00 }), // top
+                new THREE.MeshPhongMaterial({ color: 0xffcc00 }), // bottom
+                new THREE.MeshPhongMaterial({ map: trumpTexture }), // front (face)
+                new THREE.MeshPhongMaterial({ color: 0xffcc00 })  // back
+            ];
+            player = new THREE.Mesh(playerGeo, playerMats);
+            player.position.y = 1;
+            player.castShadow = true;
+            scene.add(player);
+
+            camera.position.set(0, 25, 10);
+            camera.lookAt(player.position);
+
+            spawnNPC();
+            animate();
+            setInterval(spawnNPC, 3000);
+        }
+
+        function spawnNPC() {
+            const npcGeo = new THREE.BoxGeometry(1, 2, 1);
+            // Kamala Harris face texture (public domain/official portrait)
+            const kamalaTexture = loadTexture('https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Kamala_Harris_Vice_Presidential_Portrait.jpg/1200px-Kamala_Harris_Vice_Presidential_Portrait.jpg');
+            const npcMats = [
+                new THREE.MeshPhongMaterial({ color: 0x00ccff }), // right
+                new THREE.MeshPhongMaterial({ color: 0x00ccff }), // left
+                new THREE.MeshPhongMaterial({ color: 0x00ccff }), // top
+                new THREE.MeshPhongMaterial({ color: 0x00ccff }), // bottom
+                new THREE.MeshPhongMaterial({ map: kamalaTexture }), // front (face)
+                new THREE.MeshPhongMaterial({ color: 0x00ccff })  // back
+            ];
+            const npc = new THREE.Mesh(npcGeo, npcMats);
+            npc.position.set(
+                (Math.random() - 0.5) * 20,
+                1,
+                (Math.random() - 0.5) * 20
+            );
+            npc.castShadow = true;
+            scene.add(npc);
+            npcs.push(npc);
+            npcHealth.set(npc, 2); // Only 2 hits to kill
+        }
+
+        document.addEventListener('keydown', e => {
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+                e.preventDefault();
+            }
+            keys[e.key] = true;
+        });
+        document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+        function punch() {
+            if (!canPunch) return;
+            canPunch = false;
+            punching = true;
+            punchAnimTime = Date.now();
+            setTimeout(() => canPunch = true, punchCooldown);
+
+            for (let npc of npcs) {
+                const dist = player.position.distanceTo(npc.position);
+                if (dist < 2) {
+                    npcHealth.set(npc, npcHealth.get(npc) - 1);
+                    if (hearts > 0) {
+                        hearts = Math.max(0, hearts - 0.5);
+                        hitFlash = 10;
+                        updateHearts();
+                    }
+                    if (npcHealth.get(npc) <= 0) {
+                        // Start fall over animation
+                        deadNPCs.push({ npc, rot: 0 });
+                        npcs = npcs.filter(n => n !== npc);
+                        npcHealth.delete(npc);
+
+                        // Heal 1 heart (up to maxHearts) for each NPC killed
+                        hearts = Math.min(maxHearts, hearts + 1);
+                        updateHearts();
+
+                        // Track kills and spawn giant after 20
+                        npcKillCount++;
+                        if (npcKillCount % 5 === 0) {
+                            hearts = Math.min(maxHearts, hearts + 3);
+                            updateHearts();
+                        }
+                        if (npcKillCount === 20 && !giantNPC) {
+                            spawnGiantNPC();
+                        }
+                    }
+                    break;
+                }
+            }
+
+            // Add this after the normal NPC punch loop in punch():
+            if (giantNPC && npcHealth.get(giantNPC) > 0) {
+                const dist = player.position.distanceTo(giantNPC.position);
+                if (dist < 4) { // bigger hitbox for giant
+                    npcHealth.set(giantNPC, npcHealth.get(giantNPC) - 1);
+                    giantNPCHits++;
+                    // Heal 1 heart every 2 hits
+                    if (giantNPCHits % 2 === 0) {
+                        hearts = Math.min(maxHearts, hearts + 1);
+                        updateHearts();
+                    }
+                    if (npcHealth.get(giantNPC) <= 0) {
+                        // Giant falls over
+                        deadNPCs.push({ npc: giantNPC, rot: 0 });
+                        npcHealth.delete(giantNPC);
+                        giantNPC = null;
+                    }
+                }
+            }
+        }
+
+        function updateHearts() {
+            // Show full and half hearts
+            let heartStr = "";
+            let h = hearts;
+            for (let i = 0; i < maxHearts; i++) {
+                if (h >= 1) {
+                    heartStr += "❤️";
+                } else if (h >= 0.5) {
+                    heartStr += "💔";
+                } else {
+                    heartStr += "🤍";
+                }
+                h -= 1;
+            }
+            document.getElementById('hearts').innerText = heartStr;
+            if (hearts <= 0) {
+                alert("Game Over!");
+                window.location.reload();
+            }
+        }
+
+        function spawnGiantNPC() {
+            const geo = new THREE.BoxGeometry(3, 6, 3);
+            const kamalaTexture = loadTexture('https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Kamala_Harris_Vice_Presidential_Portrait.jpg/1200px-Kamala_Harris_Vice_Presidential_Portrait.jpg');
+            const mats = [
+                new THREE.MeshPhongMaterial({ color: 0x8800ff }),
+                new THREE.MeshPhongMaterial({ color: 0x8800ff }),
+                new THREE.MeshPhongMaterial({ color: 0x8800ff }),
+                new THREE.MeshPhongMaterial({ color: 0x8800ff }),
+                new THREE.MeshPhongMaterial({ map: kamalaTexture }),
+                new THREE.MeshPhongMaterial({ color: 0x8800ff })
+            ];
+            giantNPC = new THREE.Mesh(geo, mats);
+            giantNPC.position.set(0, 3, -15);
+            giantNPC.castShadow = true;
+            scene.add(giantNPC);
+            npcHealth.set(giantNPC, 20);
+            giantNPCHits = 0;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Player movement
+            let move = new THREE.Vector3();
+            if (keys['ArrowUp']) move.z -= 1;
+            if (keys['ArrowDown']) move.z += 1;
+            if (keys['ArrowLeft']) move.x -= 1;
+            if (keys['ArrowRight']) move.x += 1;
+            move.normalize();
+            velocity.x += move.x * accel;
+            velocity.z += move.z * accel;
+            velocity.x *= friction;
+            velocity.z *= friction;
+            if (velocity.length() > maxSpeed) velocity.setLength(maxSpeed);
+            player.position.add(velocity);
+
+            if (keys[' ']) { punch(); }
+
+            // Punch animation
+            if (punching) {
+                player.position.y = 1.1;
+                player.rotation.x = -0.5;
+                if (Date.now() - punchAnimTime > punchAnimDuration) {
+                    punching = false;
+                    player.position.y = 1;
+                    player.rotation.x = 0;
+                }
+            }
+
+            // NPCs move toward player
+            for (let npc of npcs) {
+                const dir = new THREE.Vector3().subVectors(player.position, npc.position).normalize();
+                npc.position.add(dir.multiplyScalar(0.05));
+                if (
+                    npc.position.distanceTo(player.position) < 1.2 &&
+                    hearts > 0 &&
+                    !invincible
+                ) {
+                    hearts = Math.max(0, hearts - 0.5); // Only half a heart!
+                    hitFlash = 10; // trigger hit flash
+                    updateHearts();
+                    npc.position.add(dir.multiplyScalar(-2));
+                    invincible = true;
+                    lastHit = Date.now();
+                }
+            }
+
+            // Add this block to move the giant NPC:
+            if (giantNPC && npcHealth.get(giantNPC) > 0) {
+                const dir = new THREE.Vector3().subVectors(player.position, giantNPC.position).normalize();
+                giantNPC.position.add(dir.multiplyScalar(0.03));
+                if (
+                    giantNPC.position.distanceTo(player.position) < 2 &&
+                    hearts > 0 &&
+                    !invincible
+                ) {
+                    hearts = Math.max(0, hearts - 0.5);
+                    hitFlash = 10;
+                    updateHearts();
+                    giantNPC.position.add(dir.multiplyScalar(-2));
+                    invincible = true;
+                    lastHit = Date.now();
+                }
+            }
+
+            // Handle invincibility timer
+            if (invincible && Date.now() - lastHit > invincibleTime) {
+                invincible = false;
+            }
+
+            // Hit flash effect
+            if (hitFlash > 0) {
+                renderer.setClearColor(0xff0000, 0.2);
+                hitFlash--;
+            } else {
+                renderer.setClearColor(0x000000, 0);
+            }
+
+            // Smooth camera follow
+            const camTarget = new THREE.Vector3(player.position.x, player.position.y + 4, player.position.z + 10);
+            camera.position.lerp(camTarget, 0.1);
+            camera.lookAt(player.position);
+
+            // Animate dead NPCs falling over
+            for (let i = deadNPCs.length - 1; i >= 0; i--) {
+                let obj = deadNPCs[i];
+                if (obj.rot < Math.PI / 2) {
+                    obj.npc.rotation.x += 0.1;
+                    obj.rot += 0.1;
+                } else {
+                    scene.remove(obj.npc);
+                    deadNPCs.splice(i, 1);
+
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+        updateHearts(5);
+    </script>
+</body>
+
+</html>
