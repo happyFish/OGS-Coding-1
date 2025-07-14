@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Unicorn Red Glitter Game</title>
+    <style>
+        body {
+            background: #f3eaff;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #ffffff;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-family: sans-serif;
+            color: #333;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="info">Use arrow keys to move. Space to turn people into red glitter!</div>
+    <canvas id="game" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+
+        let unicorn = { x: 400, y: 300, size: 40, color: '#fff0fa' };
+        let people = [];
+        let glitter = [];
+        let lasers = [];
+        let score = 0;
+        let gameOver = false;
+        let level = 1;
+        let boss = null;
+        let bossLasers = [];
+
+        // Generate random people
+        function spawnPeople(n) {
+            for (let i = 0; i < n; i++) {
+                people.push({
+                    x: Math.random() * 760 + 20,
+                    y: Math.random() * 560 + 20,
+                    size: 30,
+                    color: '#ffb347',
+                    shootTimer: Math.random() * 60 + 60 // randomize first shot
+                });
+            }
+        }
+        spawnPeople(8);
+
+        // Handle keyboard
+        let keys = {};
+        document.addEventListener('keydown', e => keys[e.key] = true);
+        document.addEventListener('keyup', e => keys[e.key] = false);
+
+        // Game loop
+        function loop() {
+            if (gameOver) {
+                ctx.clearRect(0, 0, 800, 600);
+                ctx.font = '48px sans-serif';
+                ctx.fillStyle = '#ff2222';
+                ctx.fillText('Game Over!', 250, 300);
+                ctx.font = '32px sans-serif';
+                ctx.fillStyle = '#333';
+                ctx.fillText('Score: ' + score, 340, 350);
+                return; // Stop the loop
+            }
+
+            // Move unicorn
+            if (keys['ArrowUp']) unicorn.y -= 5;
+            if (keys['ArrowDown']) unicorn.y += 5;
+            if (keys['ArrowLeft']) unicorn.x -= 5;
+            if (keys['ArrowRight']) unicorn.x += 5;
+            unicorn.x = Math.max(0, Math.min(800, unicorn.x));
+            unicorn.y = Math.max(0, Math.min(600, unicorn.y));
+
+            // Enemy shooting logic
+            people.forEach(p => {
+                p.shootTimer--;
+                if (p.shootTimer <= 0) {
+                    // Shoot a laser at unicorn
+                    let dx = unicorn.x - p.x;
+                    let dy = unicorn.y - p.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    let speed = 3; // <-- Slower lasers
+                    lasers.push({
+                        x: p.x,
+                        y: p.y,
+                        dx: dx / dist * speed,
+                        dy: dy / dist * speed,
+                        life: 90
+                    });
+                    p.shootTimer = Math.random() * 60 + 60; // shoot every 1-2 seconds
+                }
+            });
+
+            // Move lasers
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                let l = lasers[i];
+                l.x += l.dx;
+                l.y += l.dy;
+                l.life--;
+                // Check collision with unicorn
+                let dx = unicorn.x - l.x;
+                let dy = unicorn.y - l.y;
+                if (Math.sqrt(dx * dx + dy * dy) < unicorn.size) {
+                    gameOver = true; // Game over if hit
+                    return;
+                }
+                if (l.life <= 0) lasers.splice(i, 1);
+            }
+
+            // Turn people into red glitter
+            if (keys[' ']) {
+                for (let i = people.length - 1; i >= 0; i--) {
+                    let p = people[i];
+                    let dx = unicorn.x - p.x;
+                    let dy = unicorn.y - p.y;
+                    if (Math.abs(dx) < 50 && Math.abs(dy) < 50) {
+                        people.splice(i, 1);
+                        score++;
+                        for (let g = 0; g < 30; g++) {
+                            glitter.push({
+                                x: p.x, y: p.y,
+                                dx: Math.random() * 6 - 3,
+                                dy: Math.random() * 6 - 3,
+                                size: Math.random() * 6 + 2,
+                                color: `hsl(0,90%,60%)`, // red glitter
+                                life: 40
+                            });
+                        }
+                    }
+                }
+                keys[' '] = false;
+            }
+
+            // Move glitter (but don't remove)
+            glitter.forEach(g => {
+                g.x += g.dx;
+                g.y += g.dy;
+                if (g.life > 0) g.life--;
+            });
+
+            // Draw everything
+            ctx.clearRect(0, 0, 800, 600);
+
+            // Draw unicorn
+            ctx.beginPath();
+            ctx.arc(unicorn.x, unicorn.y, unicorn.size, 0, Math.PI * 2);
+            ctx.fillStyle = unicorn.color;
+            ctx.fill();
+            ctx.strokeStyle = '#ff69b4';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            // Draw horn
+            ctx.beginPath();
+            ctx.moveTo(unicorn.x, unicorn.y - unicorn.size);
+            ctx.lineTo(unicorn.x, unicorn.y - unicorn.size - 20);
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            // Draw people
+            people.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+
+            // Draw lasers
+            console.log('Drawing lasers');
+            lasers.forEach(l => {
+                ctx.beginPath();
+                ctx.moveTo(l.x, l.y);
+                ctx.lineTo(l.x - l.dx * 3, l.y - l.dy * 3);
+                ctx.strokeStyle = '#ff2222';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            });
+
+            // Draw glitter
+            glitter.forEach(g => {
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, g.size, 0, Math.PI * 2);
+                ctx.fillStyle = g.color;
+                ctx.globalAlpha = 1;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw score
+            ctx.font = '24px sans-serif';
+            ctx.fillStyle = '#333';
+            ctx.fillText('Score: ' + score, 10, 30);
+
+            requestAnimationFrame(loop);
+        }
+        loop();
+
+    </script>
+</body>
+
+</html>
