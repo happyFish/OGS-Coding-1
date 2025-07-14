@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UFO Cow Abduction</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #222; }
+    #score {
+      position: absolute; top: 10px; left: 0; right: 0; text-align: center;
+      color: #fff; font-size: 2em; z-index: 10; font-family: sans-serif;
+    }
+    #instructions {
+      position: absolute; top: 50px; left: 0; right: 0; text-align: center;
+      color: #fff; font-size: 1em; z-index: 10; font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="score">Cows Abducted: 0</div>
+  <div id="instructions">WASD/Arrows: Move UFO &nbsp;|&nbsp; Q/E: Up/Down &nbsp;|&nbsp; SPACE: Abduct Cow</div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+  <script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222244);
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 40, 60);
+    camera.lookAt(0, 0, 0);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Lighting
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambient);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    dirLight.position.set(50, 100, 50);
+    scene.add(dirLight);
+
+    // Ground
+    const groundGeo = new THREE.PlaneGeometry(200, 200);
+    const groundMat = new THREE.MeshPhongMaterial({ color: 0x228B22 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    // UFO (player)
+    const ufo = new THREE.Group();
+    // Saucer base
+    const baseGeo = new THREE.CylinderGeometry(4, 7, 2, 32);
+    const baseMat = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.y = 1;
+    ufo.add(base);
+    // Dome
+    const domeGeo = new THREE.SphereGeometry(3, 32, 16, 0, Math.PI * 2, 0, Math.PI / 1.5);
+    const domeMat = new THREE.MeshPhongMaterial({ color: 0x66ccff, transparent: true, opacity: 0.7 });
+    const dome = new THREE.Mesh(domeGeo, domeMat);
+    dome.position.y = 2.5;
+    ufo.add(dome);
+    ufo.position.set(0, 15, 0);
+    scene.add(ufo);
+
+    // Set camera to follow UFO at the start
+    camera.position.set(ufo.position.x, ufo.position.y + 15, ufo.position.z + 30);
+    camera.lookAt(ufo.position);
+
+    // Cows
+    let cows = [];
+    function createSpeckleTexture() {
+      const size = 128;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      // White background
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, size, size);
+      // Draw random black spots
+      for (let i = 0; i < 30; i++) {
+        const x = Math.random() * size;
+        const y = Math.random() * size;
+        const r = Math.random() * 12 + 6;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#222';
+        ctx.globalAlpha = 0.7 + Math.random() * 0.3;
+        ctx.fill();
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function createCow(x, z) {
+      const cow = new THREE.Group();
+      // Body with speckle texture
+      const bodyGeo = new THREE.BoxGeometry(2.5, 1, 1);
+      const speckleTex = createSpeckleTexture();
+      const bodyMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: speckleTex });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      cow.add(body);
+      // Head
+      const headGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+      const headMat = new THREE.MeshPhongMaterial({ color: 0x888888 });
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.position.set(1.6, 0, 0);
+      cow.add(head);
+      // Legs (longer, thinner, and positioned more like real cow legs)
+      const legGeo = new THREE.CylinderGeometry(0.12, 0.16, 1.1, 8);
+      const hoofGeo = new THREE.SphereGeometry(0.16, 8, 8);
+      for (let lx of [-0.7, 0.7]) {
+        for (let lz of [-0.35, 0.35]) {
+          // Leg
+          const leg = new THREE.Mesh(legGeo, headMat);
+          leg.position.set(lx, -0.55, lz);
+          cow.add(leg);
+          // Hoof (black)
+          const hoofMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+          const hoof = new THREE.Mesh(hoofGeo, hoofMat);
+          hoof.position.set(lx, -1.1, lz);
+          cow.add(hoof);
+        }
+      }
+      cow.position.set(x, 0.5, z);
+      scene.add(cow);
+      return cow;
+    }
+    for (let i = 0; i < 10; i++) {
+      cows.push(createCow(
+        (Math.random() - 0.5) * 160,
+        (Math.random() - 0.5) * 160
+      ));
+    }
+
+    // Pigs
+    let pigs = [];
+    function createPig(x, z) {
+      const pig = new THREE.Group();
+      // Body
+      const bodyGeo = new THREE.BoxGeometry(2, 1, 1);
+      const bodyMat = new THREE.MeshPhongMaterial({ color: 0xffb6b6 });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      pig.add(body);
+      // Head
+      const headGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+      const headMat = new THREE.MeshPhongMaterial({ color: 0xffb6b6 });
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.position.set(1.2, 0, 0);
+      pig.add(head);
+      // Legs
+      const legGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.7, 8);
+      for (let lx of [-0.6, 0.6]) {
+        for (let lz of [-0.3, 0.3]) {
+          const leg = new THREE.Mesh(legGeo, headMat);
+          leg.position.set(lx, -0.85, lz);
+          pig.add(leg);
+        }
+      }
+      pig.position.set(x, 0.5, z);
+      scene.add(pig);
+      return pig;
+    }
+    for (let i = 0; i < 5; i++) {
+      pigs.push(createPig(
+        (Math.random() - 0.5) * 160,
+        (Math.random() - 0.5) * 160
+      ));
+    }
+
+    // Chickens
+    let chickens = [];
+    function createChicken(x, z) {
+      const chicken = new THREE.Group();
+      // Body
+      const bodyGeo = new THREE.SphereGeometry(0.6, 16, 16);
+      const bodyMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      chicken.add(body);
+      // Head
+      const headGeo = new THREE.SphereGeometry(0.3, 16, 16);
+      const headMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.position.set(0.7, 0.3, 0);
+      chicken.add(head);
+      // Beak
+      const beakGeo = new THREE.ConeGeometry(0.1, 0.2, 8);
+      const beakMat = new THREE.MeshPhongMaterial({ color: 0xffcc00 });
+      const beak = new THREE.Mesh(beakGeo, beakMat);
+      beak.position.set(0.95, 0.3, 0);
+      beak.rotation.z = Math.PI / 2;
+      chicken.add(beak);
+      // Legs
+      const legGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8);
+      const legMat = new THREE.MeshPhongMaterial({ color: 0xffcc00 });
+      for (let lz of [-0.15, 0.15]) {
+        const leg = new THREE.Mesh(legGeo, legMat);
+        leg.position.set(-0.2, -0.6, lz);
+        chicken.add(leg);
+      }
+      chicken.position.set(x, 0.5, z);
+      scene.add(chicken);
+      return chicken;
+    }
+    for (let i = 0; i < 5; i++) {
+      chickens.push(createChicken(
+        (Math.random() - 0.5) * 160,
+        (Math.random() - 0.5) * 160
+      ));
+    }
+
+    // Controls
+    const keys = {};
+    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+    // Abduction state
+    let abductionActive = false;
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space') abductionActive = true;
+    });
+    document.addEventListener('keyup', e => {
+      if (e.code === 'Space') abductionActive = false;
+    });
+
+    // Score
+    let score = 0;
+    const scoreDiv = document.getElementById('score');
+
+    // Abduct cows, pigs, and chickens
+    function tryAbductAnimals(animalArray, ufo, abductionActive) {
+      if (abductionActive) {
+        for (let i = animalArray.length - 1; i >= 0; i--) {
+          const animal = animalArray[i];
+          const dx = Math.abs(ufo.position.x - animal.position.x);
+          const dz = Math.abs(ufo.position.z - animal.position.z);
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < 4 && ufo.position.y > animal.position.y + 2) {
+            if (!animal.userData.abducting) {
+              animal.userData.abducting = true;
+              animal.userData.spin = (Math.random() - 0.5) * 0.3 + 0.2;
+            }
+          }
+        }
+      }
+    }
+
+    function animateAbductingAnimals(animalArray, ufo, scoreCallback) {
+      for (let i = animalArray.length - 1; i >= 0; i--) {
+        const animal = animalArray[i];
+        if (animal.userData.abducting) {
+          animal.position.y += 0.7;
+          animal.position.x += (ufo.position.x - animal.position.x) * 0.1;
+          animal.position.z += (ufo.position.z - animal.position.z) * 0.1;
+          animal.rotation.y += animal.userData.spin;
+          animal.rotation.z += animal.userData.spin * 0.7;
+          if (animal.position.y > ufo.position.y - 2) {
+            scene.remove(animal);
+            animalArray.splice(i, 1);
+            scoreCallback();
+          }
+        }
+      }
+    }
+
+    // Animate
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // UFO movement
+      const speed = 0.7;
+      if (keys['w'] || keys['arrowup']) ufo.position.z -= speed;
+      if (keys['s'] || keys['arrowdown']) ufo.position.z += speed;
+      if (keys['a'] || keys['arrowleft']) ufo.position.x -= speed;
+      if (keys['d'] || keys['arrowright']) ufo.position.x += speed;
+      if (keys['q']) ufo.position.y += speed;
+      if (keys['e']) ufo.position.y -= speed;
+      ufo.position.y = Math.max(5, Math.min(40, ufo.position.y));
+
+      camera.position.lerp(
+        new THREE.Vector3(ufo.position.x, ufo.position.y + 15, ufo.position.z + 30),
+        0.1
+      );
+      camera.lookAt(ufo.position);
+
+      // Abduction beam
+      let beam;
+      if (abductionActive) {
+        if (!ufo.getObjectByName('beam')) {
+          const beamGeo = new THREE.CylinderGeometry(1, 4, ufo.position.y - 0.5, 32, 1, true);
+          const beamMat = new THREE.MeshPhongMaterial({ color: 0xffff99, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+          beam = new THREE.Mesh(beamGeo, beamMat);
+          beam.position.y = -(ufo.position.y - 1) / 2;
+          beam.name = 'beam';
+          ufo.add(beam);
+        }
+      } else {
+        beam = ufo.getObjectByName('beam');
+        if (beam) ufo.remove(beam);
+      }
+
+      // Abduct all animals
+      tryAbductAnimals(cows, ufo, abductionActive);
+      tryAbductAnimals(pigs, ufo, abductionActive);
+      tryAbductAnimals(chickens, ufo, abductionActive);
+
+      // Animate abducting animals
+      let scoreChanged = false;
+      function incScore() { score++; scoreChanged = true; }
+      animateAbductingAnimals(cows, ufo, incScore);
+      animateAbductingAnimals(pigs, ufo, incScore);
+      animateAbductingAnimals(chickens, ufo, incScore);
+      if (scoreChanged) scoreDiv.innerText = "Cows Abducted: " + score;
+
+      // Respawn animals if all gone
+      if (cows.length + pigs.length + chickens.length === 0) {
+        for (let i = 0; i < 10; i++) {
+          cows.push(createCow(
+            (Math.random() - 0.5) * 160,
+            (Math.random() - 0.5) * 160
+          ));
+        }
+        for (let i = 0; i < 5; i++) {
+          pigs.push(createPig(
+            (Math.random() - 0.5) * 160,
+            (Math.random() - 0.5) * 160
+          ));
+          chickens.push(createChicken(
+            (Math.random() - 0.5) * 160,
+            (Math.random() - 0.5) * 160
+          ));
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
