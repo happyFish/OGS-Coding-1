@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Subway Surfers</title>
+    <style>
+        body {
+            background: #222;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #7ec850;
+        }
+
+        #customize {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 2;
+            box-shadow: 0 2px 10px #0008;
+        }
+
+        #customize label {
+            margin-right: 10px;
+        }
+
+        #customize button {
+            margin-top: 10px;
+        }
+
+        #shop {
+            display: none;
+            position: absolute;
+            top: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px #0008;
+            z-index: 3;
+            min-width: 220px;
+            text-align: center;
+        }
+
+        #shop button {
+            margin-top: 10px;
+        }
+
+        #rules {
+            display: none;
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 22px;
+            border-radius: 12px;
+            z-index: 10;
+            box-shadow: 0 2px 16px #0008;
+            min-width: 260px;
+            text-align: center;
+        }
+
+        #rules ul {
+            text-align: left;
+            font-size: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="customize">
+        <h2>Customize Your Character</h2>
+        <label>Color:
+            <input type="color" id="charColor" value="#ff0">
+        </label>
+        <label>Hat:
+            <select id="charHat">
+                <option value="none">None</option>
+                <option value="red">Red</option>
+                <option value="blue">Blue</option>
+            </select>
+        </label>
+        <br>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="shop"
+        style="display:none; position:absolute; top:180px; left:50%; transform:translateX(-50%); background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 10px #0008; z-index:3; min-width:220px; text-align:center;">
+        <h2>Shop</h2>
+        <div style="margin-bottom:10px;">Your Coins: <span id="moneyAmount">0</span></div>
+        <button id="buyShoesBtn" onclick="buyShoes()">Buy Shoes (40 coins)</button>
+        <br><br>
+        <button id="buyLifeBtn" onclick="buyLife()">Buy 1 Life (60 coins)</button>
+        <div style="margin-top:10px; font-size:13px; color:#444;">Shoes make you slower (easier!)<br>Lives let you
+            survive a crash.</div>
+        <br>
+        <button onclick="closeShop()" style="margin-top:15px;">Close</button>
+    </div>
+    <div id="rules"
+        style="display:none; position:absolute; top:60px; left:50%; transform:translateX(-50%); background:#fff; padding:22px; border-radius:12px; z-index:10; box-shadow:0 2px 16px #0008; min-width:260px; text-align:center;">
+        <h2>How to Play</h2>
+        <ul style="text-align:left; font-size:15px;">
+            <li>Use <b>Left/Right</b> arrows to move</li>
+            <li>Use <b>Up</b> arrow or <b>Space</b> to jump</li>
+            <li>Use <b>Down</b> arrow or <b>S</b> to duck</li>
+            <li>Collect coins and power-ups</li>
+            <li>Jump over or duck under obstacles</li>
+            <li>Buy shoes (slower) or lives (extra chance) in the shop</li>
+            <li>Special power-ups let you jump higher or duck longer</li>
+        </ul>
+        <button onclick="closeRules()" style="margin-top:10px;">OK, Got it!</button>
+    </div>
+    <canvas id="game" width="400" height="600"></canvas>
+    <audio id="bgm" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b5fae5b7.mp3" loop></audio>
+    <script>
+        // --- Customization ---
+        let playerColor = '#ff0';
+        let playerHat = 'none';
+
+        function startGame() {
+            playerColor = document.getElementById('charColor').value;
+            playerHat = document.getElementById('charHat').value;
+            hasShoes = localStorage.getItem('ss_shoes') === '1';
+            boughtShoes = hasShoes;
+            document.getElementById('customize').style.display = 'none';
+            document.getElementById('shop').style.display = 'none';
+            resetGame();
+            gameLoop();
+        }
+
+        // --- Game Variables ---
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const laneCount = 3;
+        const laneWidth = canvas.width / laneCount;
+        let playerLane = 1; // 0: left, 1: center, 2: right
+        let playerY = canvas.height - 80;
+        let playerVY = 0;
+        let isJumping = false;
+        let isDucking = false;
+        let duckTimer = 0;
+        let obstacles = [];
+        let coins = [];
+        let powerups = [];
+        let score = 0;
+        let bestScore = localStorage.getItem('ss_best') || 0;
+        let gameOver = false;
+        let level = 1;
+        let slowDown = false;
+        let slowFactor = 1;
+        let hasShoes = false;
+        let money = parseInt(localStorage.getItem('ss_money') || '0');
+        let boughtShoes = localStorage.getItem('ss_shoes') === '1';
+        let lives = parseInt(localStorage.getItem('ss_lives') || '0');
+        let usedLifeThisRun = false;
+
+        function resetGame() {
+            playerLane = 1;
+            playerY = canvas.height - 80;
+            playerVY = 0;
+            isJumping = false;
+            isDucking = false;
+            duckTimer = 0;
+            obstacles = [];
+            coins = [];
+            powerups = [];
+            score = 0;
+            level = 1;
+            gameOver = false;
+            usedLifeThisRun = false;
+            // Give an extra life at the start
+            if (lives < 1) lives = 1;
+            spawnObstacle();
+            spawnCoin();
+        }
+
+        // --- Drawing ---
+        function drawPlayer() {
+            ctx.save();
+            let px = playerLane * laneWidth + laneWidth / 4;
+            let py = playerY;
+            let ph = isDucking ? 25 : 40;
+            let pw = laneWidth / 2;
+
+            // Running bounce
+            let bounce = Math.abs(Math.sin(Date.now() / 120)) * (isJumping ? 0 : 6);
+            py -= bounce;
+
+            // Shadow
+            ctx.beginPath();
+            ctx.ellipse(px + pw / 2, canvas.height - 40 + 10, pw / 2.2, 8, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(0,0,0,0.25)";
+            ctx.fill();
+
+            // Body (rounded)
+            ctx.beginPath();
+            ctx.moveTo(px + pw / 2, py);
+            ctx.arc(px + pw / 2, py + ph / 2, pw / 2, Math.PI * 1.2, Math.PI * -0.2, false);
+            ctx.arc(px + pw / 2, py + ph / 2, pw / 2, Math.PI * 0.8, Math.PI * 2.2, false);
+            ctx.closePath();
+            ctx.fillStyle = playerColor;
+            ctx.fill();
+
+            // Hat
+            if (playerHat !== 'none') {
+                ctx.fillStyle = playerHat === 'red' ? '#f00' : '#00f';
+                ctx.fillRect(px + 8, py - 12, pw - 16, 10);
+                ctx.beginPath();
+                ctx.arc(px + pw / 2, py - 7, pw / 4, Math.PI, 0, false);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawObstacles() {
+            obstacles.forEach(obs => {
+                ctx.save();
+                // Train body
+                ctx.fillStyle = obs.color;
+                ctx.fillRect(obs.lane * laneWidth + 10, obs.y, laneWidth - 20, obs.height);
+                // Train windows
+                ctx.fillStyle = '#fff8';
+                for (let i = 0; i < Math.floor(obs.height / 30); i++) {
+                    ctx.fillRect(obs.lane * laneWidth + 20, obs.y + 10 + i * 30, laneWidth - 40, 15);
+                }
+                ctx.restore();
+            });
+        }
+
+        function drawCoins() {
+            coins.forEach(coin => {
+                ctx.save();
+                let cx = coin.lane * laneWidth + laneWidth / 2;
+                let cy = coin.y;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+                ctx.fillStyle = "#fc0";
+                ctx.shadowColor = "#fff";
+                ctx.shadowBlur = 8;
+                ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#fff";
+                ctx.stroke();
+                ctx.font = "16px Arial";
+                ctx.fillStyle = "#fff";
+                ctx.textAlign = "center";
+                ctx.fillText("¢", cx, cy + 6);
+                ctx.restore();
+            });
+        }
+
+        function drawScore() {
+            ctx.fillStyle = '#fff';
+            ctx.font = '20px Arial';
+            ctx.fillText('Score: ' + score, 10, 30);
+            ctx.fillText('Best: ' + bestScore, 10, 55);
+            ctx.fillText('Level: ' + level, 320, 30);
+            ctx.fillText('Coins: ' + money, 10, 80);
+            ctx.fillText('Lives: ' + lives, 320, 55);
+        }
+
+        function drawBackground() {
+            // Draw ground with perspective
+            let grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grd.addColorStop(0, "#b2e07a");
+            grd.addColorStop(1, "#7ec850");
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw lane markings
+            ctx.save();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 3;
+            for (let i = 1; i < laneCount; i++) {
+                let x = i * laneWidth;
+                ctx.setLineDash([20, 20]);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // Draw vanishing point lines for perspective
+            ctx.save();
+            ctx.strokeStyle = "#eee8";
+            ctx.lineWidth = 2;
+            for (let i = 0; i <= laneCount; i++) {
+                let x = i * laneWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, canvas.height);
+                ctx.lineTo(canvas.width / 2, 0);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // --- Obstacles ---
+        function spawnObstacle() {
+            // Trains: tall, colored, sometimes block 1, 2, or all lanes
+            let type = Math.random();
+            let lanes = [Math.floor(Math.random() * laneCount)];
+            if (type > 0.7) { // double train
+                let l2 = (lanes[0] + 1) % laneCount;
+                lanes.push(l2);
+            }
+            if (type > 0.95) { // triple train
+                lanes = [0, 1, 2];
+            }
+            lanes.forEach(lane => {
+                // 30% chance to be a "tall" train (cannot jump over)
+                let isTall = Math.random() < 0.3;
+                let isLow = Math.random() < 0.2; // 20% chance for low obstacle
+                obstacles.push({
+                    lane,
+                    y: -80,
+                    height: isTall ? 120 : 60 + Math.random() * 40,
+                    color: isTall ? '#222' : ['#888', '#444', '#b00', '#0af'][Math.floor(Math.random() * 4)],
+                    tall: isTall,
+                    low: isLow
+                });
+            });
+        }
+
+        function updateObstacles() {
+            let speed = (3 + level * 0.7) * slowFactor;
+            obstacles.forEach(obs => obs.y += speed);
+            obstacles = obstacles.filter(obs => obs.y < canvas.height + 10);
+        }
+
+        // --- Coins ---
+        coins = [];
+        function spawnCoin() {
+            // 2-3 coins per spawn, more frequent
+            let coinCount = 2 + Math.floor(Math.random() * 2);
+            let usedLanes = [];
+            for (let i = 0; i < coinCount; i++) {
+                let lane;
+                do {
+                    lane = Math.floor(Math.random() * laneCount);
+                } while (usedLanes.includes(lane));
+                usedLanes.push(lane);
+                coins.push({
+                    lane,
+                    y: -30
+                });
+            }
+        }
+        function updateCoins() {
+            let speed = (3 + level * 0.7) * slowFactor;
+            coins.forEach(coin => coin.y += speed);
+            coins = coins.filter(coin => coin.y < canvas.height + 20);
+        }
+
+        // --- Power-ups ---
+        let jumpBoostActive = false;
+        let jumpBoostTimer = 0;
+        let duckPowerActive = false;
+        let duckPowerTimer = 0;
+        powerups = [];
+
+        function spawnPowerup() {
+            // 50% chance for jump boost, 50% for duck power
+            let type = Math.random() < 0.5 ? 'jump' : 'duck';
+            let lane = Math.floor(Math.random() * laneCount);
+            powerups.push({
+                type,
+                lane,
+                y: -30
+            });
+        }
+
+        function drawPowerups() {
+            powerups.forEach(pu => {
+                ctx.save();
+                let cx = pu.lane * laneWidth + laneWidth / 2;
+                let cy = pu.y;
+                if (pu.type === 'jump') {
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+                    ctx.fillStyle = "#0cf";
+                    ctx.fill();
+                    ctx.font = "bold 16px Arial";
+                    ctx.fillStyle = "#fff";
+                    ctx.textAlign = "center";
+                    ctx.fillText("J", cx, cy + 6);
+                } else {
+                    ctx.beginPath();
+                    ctx.rect(cx - 12, cy - 12, 24, 24);
+                    ctx.fillStyle = "#fa0";
+                    ctx.fill();
+                    ctx.font = "bold 16px Arial";
+                    ctx.fillStyle = "#fff";
+                    ctx.textAlign = "center";
+                    ctx.fillText("D", cx, cy + 6);
+                }
+                ctx.restore();
+            });
+        }
+
+        function updatePowerups() {
+            let speed = (3 + level * 0.7) * slowFactor;
+            powerups.forEach(pu => pu.y += speed);
+            powerups = powerups.filter(pu => pu.y < canvas.height + 20);
+        }
+
+        function checkPowerupCollision() {
+            let px = playerLane;
+            let py = playerY;
+            let ph = isDucking ? 25 : 40;
+            powerups = powerups.filter(pu => {
+                if (
+                    pu.lane === px &&
+                    py + ph > pu.y - 10 &&
+                    py < pu.y + 10
+                ) {
+                    if (pu.type === 'jump') {
+                        jumpBoostActive = true;
+                        jumpBoostTimer = 600; // longer duration
+                    } else {
+                        duckPowerActive = true;
+                        duckPowerTimer = 600; // longer duration
+                    }
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        // --- Collision ---
+        function checkCollision() {
+            let px = playerLane;
+            let py = playerY;
+            let ph = isDucking ? 25 : 40;
+            let jumpThreshold = 30;
+
+            obstacles.forEach(obs => {
+                if (obs.lane === px) {
+                    let hit = false;
+                    if (obs.tall) {
+                        if (py + ph > obs.y && py < obs.y + obs.height) hit = true;
+                    } else {
+                        if (
+                            py + ph > obs.y + jumpThreshold &&
+                            py < obs.y + obs.height &&
+                            !isJumping
+                        ) hit = true;
+                    }
+                    if (hit && !usedLifeThisRun && lives > 0) {
+                        // Use a life and keep playing
+                        lives--;
+                        localStorage.setItem('ss_lives', lives);
+                        usedLifeThisRun = true;
+                        setTimeout(() => { usedLifeThisRun = false; }, 1000); // 1s invincibility
+                        // Remove the obstacle so you don't instantly die again
+                        obstacles = obstacles.filter(o => o !== obs);
+                    } else if (hit && (!lives || usedLifeThisRun)) {
+                        gameOver = true;
+                    }
+                }
+            });
+        }
+
+        // --- Coin collision ---
+        function checkCoinCollision() {
+            let px = playerLane;
+            let py = playerY;
+            let ph = isDucking ? 25 : 40;
+            coins = coins.filter(coin => {
+                if (
+                    coin.lane === px &&
+                    py + ph > coin.y - 10 &&
+                    py < coin.y + 10
+                ) {
+                    money++;
+                    localStorage.setItem('ss_money', money);
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        // --- Game Loop ---
+        function gameLoop() {
+            if (gameOver && slowFactor > 0.15) {
+                slowDown = true;
+                slowFactor *= 0.92;
+            } else if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = '48px Arial';
+                ctx.fillText('Game Over', 80, 300);
+                ctx.font = '24px Arial';
+                ctx.fillText('Score: ' + score, 150, 350);
+                ctx.fillText('Best: ' + bestScore, 150, 380);
+                ctx.fillText('Press R to Restart', 100, 450);
+                showShop();
+                return;
+            } else {
+                slowDown = false;
+                slowFactor = 1;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+            drawPlayer();
+            drawObstacles();
+            drawCoins();
+            drawPowerups();
+            drawScore();
+            updateObstacles();
+            updateCoins();
+            updatePowerups();
+
+            // Gravity & Jump
+            if (isJumping) {
+                playerY += playerVY * slowFactor;
+                playerVY += 0.7 * slowFactor;
+                if (playerY >= canvas.height - 80) {
+                    playerY = canvas.height - 80;
+                    isJumping = false;
+                    playerVY = 0;
+                }
+            }
+            // Duck
+            if (isDucking) {
+                duckTimer -= slowFactor;
+                if (duckTimer <= 0) isDucking = false;
+            }
+
+            checkCollision();
+            checkCoinCollision();
+            checkPowerupCollision();
+
+            // Power-up timers
+            if (jumpBoostActive) {
+                jumpBoostTimer--;
+                if (jumpBoostTimer <= 0) jumpBoostActive = false;
+            }
+            if (duckPowerActive) {
+                duckPowerTimer--;
+                if (duckPowerTimer <= 0) duckPowerActive = false;
+            }
+
+            if (!slowDown) {
+                score++;
+                if (score > bestScore) {
+                    bestScore = score;
+                    localStorage.setItem('ss_best', bestScore);
+                }
+                // Spawn obstacles and coins less often, powerups more often
+                if (score % 120 === 0) {
+                    level++;
+                }
+                if (score % 60 === 0) { // less frequent obstacles
+                    spawnObstacle();
+                    spawnCoin();
+                    if (Math.random() < 0.7) spawnPowerup(); // more frequent powerups
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Controls ---
+        document.addEventListener('keydown', e => {
+            if (gameOver) {
+                if (e.key === 'r') {
+                    resetGame();
+                    gameLoop();
+                }
+                return;
+            }
+            if (e.key === 'ArrowLeft' && playerLane > 0) playerLane--;
+            if (e.key === 'ArrowRight' && playerLane < laneCount - 1) playerLane++;
+            if ((e.key === 'ArrowUp' || e.key === ' ') && !isJumping && !isDucking) {
+                isJumping = true;
+                playerVY = jumpBoostActive ? -32 : -22; // higher jump
+            }
+            if ((e.key === 'ArrowDown' || e.key.toLowerCase() === 's') && !isJumping && !isDucking) {
+                isDucking = true;
+                duckTimer = duckPowerActive ? 60 : 30; // longer duck
+            }
+        });
+
+        document.addEventListener('keyup', e => {
+            if (e.key === 'ArrowDown') {
+                isDucking = false;
+            }
+        });
+
+        // --- Shop Functions ---
+        function showShop() {
+            const shop = document.getElementById('shop');
+            shop.style.display = 'block';
+            document.getElementById('moneyAmount').textContent = money;
+            document.getElementById('buyShoesBtn').disabled = boughtShoes || money < 40;
+            document.getElementById('buyShoesBtn').textContent = boughtShoes ? "Bought!" : "Buy Shoes (40 coins)";
+            document.getElementById('buyLifeBtn').disabled = money < 60;
+            document.getElementById('buyLifeBtn').textContent = "Buy 1 Life (60 coins) | You have: " + lives;
+        }
+
+        function closeShop() {
+            document.getElementById('shop').style.display = 'none';
+        }
+
+        function buyShoes() {
+            if (money >= 40 && !boughtShoes) {
+                money -= 40;
+                boughtShoes = true;
+                hasShoes = true;
+                localStorage.setItem('ss_money', money);
+                localStorage.setItem('ss_shoes', '1');
+                showShop();
+            }
+        }
+
+        function buyLife() {
+            if (money >= 60) {
+                money -= 60;
+                lives += 1;
+                localStorage.setItem('ss_money', money);
+                localStorage.setItem('ss_lives', lives);
+                showShop();
+            }
+        }
+
+        // --- Rules Control ---
+        // Show rules only the first time
+        if (!localStorage.getItem('ss_rules_shown')) {
+            document.getElementById('rules').style.display = 'block';
+        }
+        function closeRules() {
+            document.getElementById('rules').style.display = 'none';
+        }
+
+        // --- Game Start Control ---
+        // Remove these lines at the bottom:
+        // spawnObstacle();
+        // gameLoop();
+
+        // Instead, only start after customization:
+    </script>
+</body>
+
+</html>
