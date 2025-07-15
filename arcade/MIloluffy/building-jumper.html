@@ -75,6 +75,8 @@
         // Controls
         let velocity = new THREE.Vector3();
         let canJump = false;
+        const jumpStrength = 0.22; // Increased jump height
+        const gravity = 0.012;     // Slightly stronger gravity
         const keys = {};
         document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
         document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -158,7 +160,7 @@
             for (const t of turrets) scene.remove(t);
             turrets.length = 0;
             // Add new turrets
-            for (let i = 1; i < buildings.length; i += 2) {
+            for (let i = 1; i < buildings.length; i += 4) {
                 const turret = new THREE.Mesh(turretGeometry, turretMaterial);
                 turret.position.set(
                     buildings[i].position.x,
@@ -182,7 +184,7 @@
                         player.position.x - turret.position.x,
                         player.position.y - turret.position.y,
                         player.position.z - turret.position.z
-                    ).normalize().multiplyScalar(0.12)
+                    ).normalize().multiplyScalar(0.05)
                 };
                 scene.add(bullet);
                 bullets.push(bullet);
@@ -190,28 +192,28 @@
         }
 
         // Shoot bullets every 5 seconds
-        setInterval(shootBullets, 1500);
+        setInterval(shootBullets, 5000);
 
         // Game loop
         function animate() {
             requestAnimationFrame(animate);
 
             // Movement
-            let speed = 0.08;
+            let speed = 0.09;
             if (keys['w']) player.position.z -= speed;
             if (keys['s']) player.position.z += speed;
             if (keys['a']) player.position.x -= speed;
             if (keys['d']) player.position.x += speed;
 
             // Gravity
-            velocity.y -= 0.01;
+            velocity.y -= gravity;
             player.position.y += velocity.y;
 
             checkBuildingCollision();
 
             // Jump
             if (keys[' '] && canJump) {
-                velocity.y = 0.18;
+                velocity.y = jumpStrength;
                 canJump = false;
             }
 
@@ -269,7 +271,7 @@
         });
 
         // When game starts or resets, after buildings are created:
-        addTurrets();
+        addTurrets("addturrets");
     </script>
 </body>
 
