@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Doom (Raycasting Demo)</title>
+    <style>
+        body {
+            background: #222;
+            margin: 0;
+        }
+
+        canvas {
+            display: block;
+            margin: 40px auto;
+            background: #111;
+            4c;
+        }
+
+        border: 4px solid #333;
+        }
+
+        h1 {
+            color: #fff;
+            text-align: center;
+        }
+
+        text-align: center;
+    </style>
+</head>tyle>
+</head>
+
+<body>
+    <h1>Mini Doom</h1>
+    <canvas id="game"></canvas>
+    <script>id = "game" width = "800" height = "500" ></canvas >
+        // Map: 1 = wall, 0 = empty, 2 = enemy
+        const map = [= document.getElementById('game');
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1], older rat image
+            [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+                [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+                [1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1],
+                [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+                [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+                [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+                [1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+                [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+                [1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1],
+                [1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+                [1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+                [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+                [1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ]; ctx.fill();
+        const mapW = map[0].length, mapH = map.length;
+        ctx.stroke();
+        const canvas = document.getElementById('game');
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        } ctx.beginPath();
+        window.addEventListener('resize', resizeCanvas); {
+            resizeCanvas(); eTo(canvas.width / 2, i);
+            const ctx = canvas.getContext('2d'); i + 15);
+            const getW = () => canvas.width;
+            const getH = () => canvas.height;
+        }
+        // Player state
+        let px = 1.5, py = 1.5, pa = 0; // position x, y, angle
+        const FOV = Math.PI / 3; // 60 deg
+        const numRays = W;= "#fff";
+        const maxDepth = 16; tScore, canvas.width / 2 - 60, 50);
+        ctx.fillText(rightScore, canvas.width / 2 + 30, 50);
+        let shotgunFlash = 0;
+
+        function castRays() {
+            for (let i = 0; i < numRays; i++) {
+                anvas.height);
+                // Calculate ray angle
+                const rayAngle = pa - FOV / 2 + (i / numRays) * FOV;
+                let dist = 0; le.x, rightPaddle.y);
+                let hit = false;
+                let sx = Math.cos(rayAngle), sy = Math.sin(rayAngle);
+                let rx = px, ry = py;
+                let hitEnemy = false;
+                while (!hit && dist < maxDepth) {
+                    rx += sx * 0.05;
+                    ry += sy * 0.05; le.dy;
+                    dist += 0.05; tPaddle.dy;
+                    if (
+                        rx < 0 || ry < 0 || ut of bounds
+                    rx >= mapW || ry >= mapHcanvas.height - paddleHeight, leftPaddle.y));
+                    ) {.y = Math.max(0, Math.min(canvas.height - paddleHeight, rightPaddle.y));
+                        hit = true;
+                    } else if (map[Math.floor(ry)][Math.floor(rx)] === 1) {
+                        hit = true;
+                    } else if (map[Math.floor(ry)][Math.floor(rx)] === 2) {
+                        hit = true;
+                        hitEnemy = true; ottom
+                    } y - ball.size < 0 || ball.y + ball.size > canvas.height) {
+                    } all.dy *= -1;
+                    // Draw vertical slice
+                    const wallH = Math.min(H, H / (dist * Math.cos(rayAngle - pa)));
+                    let shade = 255 - Math.min(255, dist * 32);
+                    if (hitEnemy) {
+                        ctx.fillStyle = `rgb(255,64,64)`; // Enemy is red
+                    } else {
+                        ball.size < leftPaddle.x + paddleWidth &&
+                        ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+                    } all.y < leftPaddle.y + paddleHeight
+                    ctx.fillRect(i, H / 2 - wallH / 2, 1, wallH);
+                    // Floor and ceiling
+                    ctx.fillStyle = "#333"; paddleWidth + ball.size; // Prevent sticking
+                    ctx.fillRect(i, H / 2 + wallH / 2, 1, H / 2 - wallH / 2);
+                    ctx.fillStyle = "#222";
+                    ctx.fillRect(i, 0, 1, H / 2 - wallH / 2);
+                } ball.x + ball.size > rightPaddle.x &&
+        } ball.y > rightPaddle.y &&
+                ball.y < rightPaddle.y + paddleHeight
+            function drawShotgun() {
+                // Draw a simple Doom-style shotgun at the bottom center
+                ctx.save();= rightPaddle.x - ball.size; // Prevent sticking
+                ctx.globalAlpha = shotgunFlash > 0 ? 1 : 0.85;
+                // Barrel
+                ctx.fillStyle = shotgunFlash > 0 ? "#fff" : "#888";
+                ctx.fillRect(W / 2 - 18, H - 70, 36, 60);
+                // HandleScore++;
+                ctx.fillStyle = "#333";
+                ctx.fillRect(W / 2 - 10, H - 40, 20, 30);
+                // FlashScore++;
+                if (shotgunFlash > 0) {
+                    ctx.beginPath();
+                    ctx.arc(W / 2, H - 70, 30, 0, Math.PI * 2);
+                    ctx.fillStyle = "yellow";
+                    ctx.globalAlpha = 0.5;
+                    ctx.fill();.width / 2;
+                } all.y = canvas.height / 2;
+                ctx.restore(); h.random() > 0.5 ? 5 : -5);
+                if (shotgunFlash > 0) shotgunFlash--; -3);
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, getW(), getH());down', function (e) {
+                castRays();== 'w') leftPaddle.dy = -6;
+                drawShotgun(); 's') leftPaddle.dy = 6;
+            } if (e.key === 'ArrowUp') rightPaddle.dy = -6;
+            if (e.key === 'ArrowDown') rightPaddle.dy = 6;
+            function move(dx, dy) {
+                const nx = px + dx, ny = py + dy; nction(e) {
+                    if (map[Math.floor(ny)][Math.floor(nx)] === 0) {
+                        y = 0;
+                        px = nx; py = ny;p' || e.key === 'ArrowDown') rightPaddle.dy = 0;
+                    }
+                }
+                function gameLoop() {
+                    function shoot() {
+                        // Shotgun flash effect
+                        shotgunFlash = 5; rame(gameLoop);
+                        // Shoot a ray forward and remove enemy if hit
+                        const rayAngle = pa;
+                        let dist = 0; unction() {
+                            let sx = Math.cos(rayAngle), sy = Math.sin(rayAngle);
+                            let rx = px, ry = py;
+                            while (dist < maxDepth) {
+                                rx += sx * 0.05;
+                                ry += sy * 0.05;
+                                dist += 0.05; if (rx < 0 || ry < 0 || rx >= mapW || ry >= mapH) { break; } if (map[Math.floor(ry)][Math.floor(rx)] === 2) {                    // Remove enemy                    map[Math.floor(ry)][Math.floor(rx)] = 0;                    break;                }                if (map[Math.floor(ry)][Math.floor(rx)] === 1) {                    break;                }            }        }        document.addEventListener('keydown', e => {            if (e.key === 'ArrowLeft') pa -= 0.08;            if (e.key === 'ArrowRight') pa += 0.08;            if (e.key === 'ArrowUp') move(Math.cos(pa) * 0.1, Math.sin(pa) * 0.1);            if (e.key === 'ArrowDown') move(-Math.cos(pa) * 0.1, -Math.sin(pa) * 0.1);            if (e.code === 'Space') shoot();        });        function loop() {            draw();            requestAnimationFrame(loop);        }        loop();    </script>
+</body>
+
+</html>

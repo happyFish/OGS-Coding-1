@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Doom (Raycasting Demo)</title>
+    <style>
+        body {
+            background: #222;
+            margin: 0;
+            display: grid;
+            grid-template-rows: auto 1fr;
+        }
+
+        canvas {
+            display: block;
+            margin: 40px auto;
+            background: #111;
+            height: 100%;
+            width: 100%;
+        }
+
+        h1 {
+            color: #fff;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Mini Doom</h1>
+    <canvas id="game"></canvas>
+    <script>
+        // --- Canvas and global variables ---
+        const canvas = document.getElementById('game');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const ctx = canvas.getContext('2d');
+
+        // Helper functions for canvas size
+        function getW() { return canvas.width; }
+        function getH() { return canvas.height; }
+
+        // Game constants
+        const FOV = Math.PI / 3;
+        const maxDepth = 20;
+
+        // Effects arrays
+        let glitterBursts = [];
+        let pelletBursts = [];
+
+        // Shotgun flash variable
+        let shotgunFlash = 0;
+
+        // --- Infinite Maze Support ---
+
+        const CHUNK_SIZE = 20; // Use original map size for each chunk
+        const chunks = {}; // { "cx,cy": [[...],[...],...] }
+
+        function generateMazeChunk(cx, cy) {
+            // Simple random maze generator (can be improved)
+            // 1 = wall, 0 = empty
+            const maze = [];
+            for (let y = 0; y < CHUNK_SIZE; y++) {
+                maze[y] = [];
+                for (let x = 0; x < CHUNK_SIZE; x++) {
+                    // Border walls
+                    if (x === 0 || y === 0 || x === CHUNK_SIZE - 1 || y === CHUNK_SIZE - 1) {
+                        maze[y][x] = 1;
+                    } else {
+                        maze[y][x] = Math.random() < 0.7 ? 0 : 1;
+                    }
+                }
+            }
+            // Ensure at least one open cell in center
+            maze[Math.floor(CHUNK_SIZE / 2)][Math.floor(CHUNK_SIZE / 2)] = 0;
+            return maze;
+        }
+
+        function getChunk(cx, cy) {
+            const key = `${cx},${cy}`;
+            if (!chunks[key]) {
+                chunks[key] = generateMazeChunk(cx, cy);
+            }
+            return chunks[key];
+        }
+
+        // Get cell value at world coordinates (can be negative)
+        function getMapCell(wx, wy) {
+            const cx = Math.floor(wx / CHUNK_SIZE);
+            const cy = Math.floor(wy / CHUNK_SIZE);
+            let lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            let ly = ((wy % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            lx = Math.ceil(lx);
+            ly = Math.ceil(ly);
+            return getChunk(cx, cy)[ly][lx];
+        }
+
+        // Set cell value at world coordinates
+        function setMapCell(wx, wy, val) {
+            const cx = Math.floor(wx / CHUNK_SIZE);
+            const cy = Math.floor(wy / CHUNK_SIZE);
+            const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            const ly = ((wy % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            getChunk(cx, cy)[ly][lx] = val;
+        }
+
+        // Find all open cells in a chunk
+        function getOpenCellsInChunk(cx, cy) {
+            const chunk = getChunk(cx, cy);
+            const open = [];
+            for (let y = 0; y < CHUNK_SIZE; y++) {
+                for (let x = 0; x < CHUNK_SIZE; x++) {
+                    if (chunk[y][x] === 0) open.push({ x, y });
+                }
+            }
+            return open;
+        }
+
+        // --- Replace original map logic ---
+
+        // Player's world position (can be any float)
+        let px = 0.5, py = 0.5, pa = 0; // position x, y, angle
+
+        // Pick a random open cell in chunk (0,0) for player start
+        (function () {
+            const open = getOpenCellsInChunk(0, 0);
+            const spawn = open[Math.floor(Math.random() * open.length)];
+            px = spawn.x + 0.5;
+            py = spawn.y + 0.5;
+        })();
+
+        // Spawn demons randomly in visible chunks
+        function spawnDemons(count) {
+            // Only spawn in current chunk for simplicity
+            const cx = Math.floor(px / CHUNK_SIZE);
+            const cy = Math.floor(py / CHUNK_SIZE);
+            const open = getOpenCellsInChunk(cx, cy);
+            for (let i = 0; i < count && open.length > 0; i++) {
+                const idx = Math.floor(Math.random() * open.length);
+                const cell = open.splice(idx, 1)[0];
+                // Don't spawn on player
+                if (Math.abs(cell.x + 0.5 - (px % CHUNK_SIZE)) < 1 && Math.abs(cell.y + 0.5 - (py % CHUNK_SIZE)) < 1) continue;
+                getChunk(cx, cy)[cell.y][cell.x] = 2;
+            }
+        }
+
+        // Initial demons
+        spawnDemons(10);
+        // Keep adding more demons over time
+        setInterval(() => {
+            spawnDemons(2);
+        }, 30000);
+
+        // --- Update all map accesses ---
+        // Replace all map[y][x] with getMapCell(x, y) or setMapCell(x, y, val)
+
+        // Example for castRays:
+        function castRays(numRays) {
+            for (let i = 0; i < numRays; i++) {
+                const rayAngle = pa - FOV / 2 + (i / numRays) * FOV;
+                let dist = 0;
+                let hit = false;
+                let sx = Math.cos(rayAngle), sy = Math.sin(rayAngle);
+                let rx = px, ry = py;
+                let hitEnemy = false;
+                while (!hit && dist < maxDepth) {
+                    rx += sx * 0.05;
+                    ry += sy * 0.05;
+                    dist += 0.05;
+                    if (getMapCell(Math.floor(rx), Math.floor(ry)) === 1) {
+                        hit = true;
+                    } else if (getMapCell(Math.floor(rx), Math.floor(ry)) === 2) {
+                        hit = true;
+                        hitEnemy = true;
+                    }
+                }
+                // Draw vertical slice
+                const H = getH();
+                const wallH = Math.min(H, H / (dist * Math.cos(rayAngle - pa)));
+                let shade = 255 - Math.min(255, dist * 32);
+                if (hitEnemy) {
+                    // Draw a thinner human-like red stick figure with black horns, hands, and feet
+                    const centerX = i;
+                    const centerY = H / 2 - wallH / 2 + wallH * 0.6;
+                    const personH = wallH * 0.5;
+                    const headR = Math.max(1, wallH * 0.07); // thinner head
+                    const bodyLen = personH * 0.35;
+                    const armLen = personH * 0.25;
+                    const legLen = personH * 0.3;
+
+                    // Head
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY - bodyLen - headR, headR, 0, Math.PI * 2);
+                    ctx.fillStyle = "red";
+                    ctx.fill();
+
+                    // Body
+                    ctx.strokeStyle = "red";
+                    ctx.lineWidth = Math.max(0.7, headR * 0.4); // thinner body
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY - bodyLen);
+                    ctx.lineTo(centerX, centerY + bodyLen * 0.5);
+                    ctx.stroke();
+
+                    // Arms
+                    ctx.lineWidth = Math.max(0.5, headR * 0.25); // thinner arms
+                    ctx.beginPath();
+                    ctx.moveTo(centerX - armLen, centerY - bodyLen * 0.5);
+                    ctx.lineTo(centerX + armLen, centerY - bodyLen * 0.5);
+                    ctx.stroke();
+
+                    // Hands (smaller circles)
+                    ctx.beginPath();
+                    ctx.arc(centerX - armLen, centerY - bodyLen * 0.5, headR * 0.18, 0, Math.PI * 2);
+                    ctx.arc(centerX + armLen, centerY - bodyLen * 0.5, headR * 0.18, 0, Math.PI * 2);
+                    ctx.fillStyle = "red";
+                    ctx.fill();
+
+                    // Legs
+                    ctx.lineWidth = Math.max(0.5, headR * 0.25); // thinner legs
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY + bodyLen * 0.5);
+                    ctx.lineTo(centerX - legLen, centerY + bodyLen + legLen);
+                    ctx.moveTo(centerX, centerY + bodyLen * 0.5);
+                    ctx.lineTo(centerX + legLen, centerY + bodyLen + legLen);
+                    ctx.stroke();
+
+                    // Feet (smaller ovals)
+                    ctx.beginPath();
+                    ctx.ellipse(centerX - legLen, centerY + bodyLen + legLen + headR * 0.1, headR * 0.18, headR * 0.09, 0, 0, Math.PI * 2);
+                    ctx.ellipse(centerX + legLen, centerY + bodyLen + legLen + headR * 0.1, headR * 0.18, headR * 0.09, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = "red";
+                    ctx.fill();
+
+                    // Horns (black, thinner)
+                    ctx.strokeStyle = "black";
+                    ctx.lineWidth = Math.max(0.5, headR * 0.13);
+                    ctx.beginPath();
+                    ctx.moveTo(centerX - headR * 0.5, centerY - bodyLen - headR * 1.1);
+                    ctx.lineTo(centerX - headR * 1.0, centerY - bodyLen - headR * 1.8);
+                    ctx.moveTo(centerX + headR * 0.5, centerY - bodyLen - headR * 1.1);
+                    ctx.lineTo(centerX + headR * 1.0, centerY - bodyLen - headR * 1.8);
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+                    ctx.fillRect(i, H / 2 - wallH / 2, 1, wallH);
+                }
+                // Floor and ceiling
+                ctx.fillStyle = "#333";
+                ctx.fillRect(i, H / 2 + wallH / 2, 1, H / 2 - wallH / 2);
+                ctx.fillStyle = "#222";
+                ctx.fillRect(i, 0, 1, H / 2 - wallH / 2);
+            }
+        }
+
+        // Draw glitter bursts (red and apple juice)
+        function drawGlitter() {
+            for (let i = glitterBursts.length - 1; i >= 0; i--) {
+                const burst = glitterBursts[i];
+                burst.life--;
+                for (const p of burst.particles) {
+                    p.x += p.vx;
+                    p.y += p.vy;;
+                    p.vy += 0.01; // gravity
+                    ctx.save();
+                    ctx.globalAlpha = burst.life / burst.maxLife;;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+                if (burst.life <= 0) glitterBursts.splice(i, 1);
+            }
+        }
+
+        // Converts map cell to screen position (center bottom)
+        function cellToScreen(cellX, cellY) {
+            // Find the angle and distance from player to demon cell
+            const dx = cellX + 0.5 - px;
+            const dy = cellY + 0.5 - py;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const angleToCell = Math.atan2(dy, dx);
+            let relAngle = angleToCell - pa;
+
+            // Keep relAngle in [-PI, PI]
+            while (relAngle < -Math.PI) relAngle += Math.PI * 2;
+            while (relAngle > Math.PI) relAngle -= Math.PI * 2;
+
+            // If outside FOV, just return center bottom
+            if (Math.abs(relAngle) > FOV / 2) return { x: getW() / 2, y: getH() - 120 };
+
+            // Project to screen
+            const screenX = getW() / 2 + (relAngle / (FOV / 2)) * (getW() / 2);
+            const wallH = Math.min(getH(), getH() / (dist * Math.cos(relAngle)));
+            const screenY = getH() / 2 - wallH / 2 + wallH * 0.6;
+            return { x: screenX, y: screenY };
+        }
+
+        function drawShotgun() {
+            const W = getW(), H = getH();
+            ctx.save();
+
+            // Animate shotgun dropping down and up during reload
+            let yOffset = 0;
+            if (reloadAnim > 0) {
+                const half = RELOAD_ANIM_FRAMES / 2;
+                if (reloadAnim > half) {
+                    yOffset = (RELOAD_ANIM_FRAMES - reloadAnim) * 8;
+                } else {
+                    yOffset = (reloadAnim - half) * 8;
+                }
+            }
+
+            // Draw shotgun body (classic Doom style: two barrels, wood grip)
+            const centerX = W / 2;
+            const baseY = H - 80 + yOffset;
+
+            // Barrels
+            ctx.lineWidth = 16;
+            ctx.strokeStyle = "#444";
+            ctx.beginPath();
+            ctx.moveTo(centerX - 12, baseY);
+            ctx.lineTo(centerX - 12, baseY + 60);
+            ctx.moveTo(centerX + 12, baseY);
+            ctx.lineTo(centerX + 12, baseY + 60);
+            ctx.stroke();
+
+            // Barrel highlights
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "#bbb";
+            ctx.beginPath();
+            ctx.moveTo(centerX - 8, baseY + 10);
+            ctx.lineTo(centerX - 8, baseY + 55);
+            ctx.moveTo(centerX + 8, baseY + 10);
+            ctx.lineTo(centerX + 8, baseY + 55);
+            ctx.stroke();
+
+            // Wood grip
+            ctx.fillStyle = "#7a4a1a";
+            ctx.fillRect(centerX - 24, baseY + 50, 48, 22);
+            ctx.strokeStyle = "#4a2a0a";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(centerX - 24, baseY + 50, 48, 22);
+
+            // Receiver (metal part above grip)
+            ctx.fillStyle = "#888";
+            ctx.fillRect(centerX - 18, baseY + 40, 36, 16);
+
+            // Muzzle flash
+            if (shotgunFlash > 0) {
+                ctx.save();
+                ctx.globalAlpha = 0.7 + 0.3 * Math.random();
+                ctx.beginPath();
+                ctx.arc(centerX, baseY, 38 + Math.random() * 10, 0, Math.PI * 2);
+                ctx.fillStyle = "yellow";
+                ctx.shadowColor = "orange";
+                ctx.shadowBlur = 32;
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // "RELOADING..." text
+            if (isReloading) {
+                ctx.globalAlpha = 1;
+                ctx.font = "bold 32px sans-serif";
+                ctx.fillStyle = "#fff";
+                ctx.textAlign = "center";
+                ctx.fillText("RELOADING...", centerX, H - 120);
+            }
+
+            ctx.restore();
+
+            if (shotgunFlash > 0) shotgunFlash--;
+            if (reloadAnim > 0) {
+                reloadAnim--;
+                if (reloadAnim === 0) isReloading = false;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, getW(), getH());
+            const numRays = Math.floor(getW());
+            castRays(numRays);
+            drawGlitter();
+            drawShotgun();
+            drawPellets();
+        }
+
+        function move(dx, dy) {
+            const nx = px + dx, ny = py + dy;
+            // Try moving both x and y
+            if (getMapCell(Math.floor(nx), Math.floor(ny)) === 0) {
+                px = nx; py = ny;
+            }
+            // Try moving only x
+            else if (getMapCell(Math.floor(nx), Math.floor(py)) === 0) {
+                px = nx;
+            }
+            // Try moving only y
+            else if (getMapCell(Math.floor(px), Math.floor(ny)) === 0) {
+                py = ny;
+            }
+        }
+
+        let isReloading = false;
+        let shotsFired = 0;
+        const RELOAD_ANIM_FRAMES = 10;
+        let reloadAnim = 0;
+
+        function shoot() {
+            if (isReloading) return;
+            // Shotgun flash effect
+            shotgunFlash = 5;
+            shotsFired++;
+            if (shotsFired >= 2) {
+                isReloading = true;
+                reloadAnim = RELOAD_ANIM_FRAMES;
+                shotsFired = 0;
+            }
+            // Shoot a ray forward and remove demon if hit
+            const rayAngle = pa;
+            let dist = 0;
+            let sx = Math.cos(rayAngle), sy = Math.sin(rayAngle);
+            let rx = px, ry = py;
+            while (dist < maxDepth) {
+                rx += sx * 0.05;
+                ry += sy * 0.05;
+                dist += 0.05;
+                if (getMapCell(rx, ry) === 2) {
+                    // Remove demon and spawn glitter burst
+                    setMapCell(rx, ry, 0);
+                    spawnGlitter(Math.floor(rx), Math.floor(ry));
+                    break;
+                }
+                if (getMapCell(rx, ry) === 1) {
+                    break;
+                }
+            }
+            // Fire pellets
+            pelletBursts.push({
+                x: getW() / 2,
+                y: getH() - 100,
+                pellets: Array.from({ length: 8 }, () => {
+                    const angle = (Math.PI / 2) + (Math.random() - 0.5) * 0.3;
+                    const speed = Math.random() * 12 + 8;
+                    return {
+                        x: 0,
+                        y: 0,
+                        vx: Math.cos(angle) * speed,
+                        vy: -Math.sin(angle) * speed,
+                        life: 12 + Math.random() * 4
+                    };
+                })
+            });
+        }
+
+        // Spawn a red glitter and apple juice burst at demon's cell
+        function spawnGlitter(cellX, cellY) {
+            // Project demon cell to screen center (for simplicity)
+            const screen = cellToScreen(cellX, cellY);
+
+            // Red glitter burst (fine particles)
+            const glitterParticles = [];
+            for (let i = 0; i < 48; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 1;
+                glitterParticles.push({
+                    x: screen.x,
+                    y: screen.y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 1,
+                    size: Math.random() * 2 + 1,
+                    color: "red"
+                });
+            }
+            glitterBursts.push({ particles: glitterParticles, life: 30, maxLife: 30 });
+
+            // Apple juice burst (big juicy splats)
+            const juiceParticles = [];
+            for (let i = 0; i < 12; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 2 + 2;
+                juiceParticles.push({
+                    x: screen.x,
+                    y: screen.y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed + 2, // more downward
+                    size: Math.random() * 6 + 6,
+                    color: "#b30000" // dark red juice
+                });
+            }
+            glitterBursts.push({ particles: juiceParticles, life: 22, maxLife: 22 });
+        }
+
+        function drawPellets() {
+            for (let i = pelletBursts.length - 1; i >= 0; i--) {
+                const burst = pelletBursts[i];
+                let allDead = true;
+                for (const p of burst.pellets) {
+                    if (p.life > 0) {
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.vy += 0.8; // gravity
+                        p.life--;
+                        ctx.save();
+                        ctx.globalAlpha = Math.max(0, p.life / 16);
+                        ctx.fillStyle = "black";
+                        ctx.beginPath();
+                        ctx.arc(burst.x + p.x, burst.y + p.y, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                        allDead = false;
+                    }
+                }
+                if (allDead) pelletBursts.splice(i, 1);
+            }
+        }
+
+        function moveDemons() {
+            const cx = Math.floor(px / CHUNK_SIZE);
+            const cy = Math.floor(py / CHUNK_SIZE);
+            const chunk = getChunk(cx, cy);
+
+            // Create a copy of the chunk to track new demon positions
+            const newChunk = chunk.map(row => row.slice());
+
+            // Track which cells are already claimed by a demon this tick
+            const claimed = Array.from({ length: CHUNK_SIZE }, () => Array(CHUNK_SIZE).fill(false));
+
+            // Find all demon positions in the chunk
+            const demons = [];
+            for (let y = 0; y < CHUNK_SIZE; y++) {
+                for (let x = 0; x < CHUNK_SIZE; x++) {
+                    if (chunk[y][x] === 2) demons.push({ x, y });
+                }
+            }
+
+            // Shuffle demons to randomize movement order
+            for (let i = demons.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [demons[i], demons[j]] = [demons[j], demons[i]];
+            }
+
+            // Try to move each demon randomly, but prefer less crowded cells
+            for (const demon of demons) {
+                claimed[demon.y][demon.x] = true; // Mark starting cell as claimed immediately
+                const dirs = [
+                    { dx: 0, dy: -1 },
+                    { dx: 0, dy: 1 },
+                    { dx: -1, dy: 0 },
+                    { dx: 1, dy: 0 }
+                ];
+                // Shuffle directions for more random movement
+                for (let i = dirs.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+                }
+                // Evaluate all possible moves and pick the least crowded
+                let best = { nx: demon.x, ny: demon.y, neighbors: 99 }; // default: stay in place
+                for (const dir of dirs) {
+                    const nx = demon.x + dir.dx;
+                    const ny = demon.y + dir.dy;
+                    if (
+                        nx >= 0 && nx < CHUNK_SIZE &&
+                        ny >= 0 && ny < CHUNK_SIZE &&
+                        chunk[ny][nx] === 0 &&
+                        !claimed[ny][nx]
+                    ) {
+                        // Count neighboring demons for this cell
+                        let neighborCount = 0;
+                        for (let dy = -1; dy <= 1; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                const tx = nx + dx, ty = ny + dy;
+                                if (
+                                    tx >= 0 && tx < CHUNK_SIZE &&
+                                    ty >= 0 && ty < CHUNK_SIZE &&
+                                    chunk[ty][tx] === 2
+                                ) neighborCount++;
+                            }
+                        }
+                        if (neighborCount < best.neighbors) {
+                            best = { nx, ny, neighbors: neighborCount };
+                        }
+                    }
+                }
+                // Move to the best cell found (or stay in place)
+                if (best.nx !== demon.x || best.ny !== demon.y) {
+                    newChunk[demon.y][demon.x] = 0;
+                    newChunk[best.ny][best.nx] = 2;
+                    claimed[best.ny][best.nx] = true;
+                    console.log('Demon moved from', demon.x, demon.y, 'to', best.nx, best.ny);
+                }
+            }
+
+            // Copy newChunk back to chunk
+            for (let y = 0; y < CHUNK_SIZE; y++) {
+                for (let x = 0; x < CHUNK_SIZE; x++) {
+                    chunk[y][x] = newChunk[y][x];
+                }
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            e.preventDefault();
+            if (e.key === 'ArrowLeft') pa -= 0.08;
+            if (e.key === 'ArrowRight') pa += 0.08;
+            if (e.key === 'ArrowUp') move(Math.cos(pa) * 0.1, Math.sin(pa) * 0.1);
+            if (e.key === 'ArrowDown') move(-Math.cos(pa) * 0.1, -Math.sin(pa) * 0.1);
+            if (e.code === 'Space') shoot();
+        });
+
+        function loop() {
+            draw();
+            requestAnimationFrame(loop);
+        }
+        loop();
+
+        // setInterval(moveDemons, 1000);
+    </script>
+</body>
+
+</html>
