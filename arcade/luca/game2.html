@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Simple FPS Demo</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+
+    #instructions {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: sans-serif;
+      z-index: 10;
+    }
+
+    #health {
+      position: absolute;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: red;
+      font-size: 24px;
+      font-family: sans-serif;
+      z-index: 20;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="instructions">Click to play. Move: WASD, Shoot: Left Mouse</div>
+  <div id="health">Health: 100</div>
+  <div id="crosshair"></div>
+  <script type="importmap">
+      { 
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/"
+        }
+      }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+    let camera, scene, renderer, controls;
+    let bullets = [];
+    let objects = [];
+    let enemies = [];
+    let playerHealth = 100;
+    let animate;
+
+    function init() {
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+      camera.position.y = 10;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0a22); // Night sky
+
+      // Add ambient light (dimmer, bluish)
+      scene.add(new THREE.AmbientLight(0x223366, 0.15));
+
+      // Add a directional light with shadows (moonlight, bluish, dim)
+      const dirLight = new THREE.DirectionalLight(0x99bbff, 0.3);
+      dirLight.position.set(30, 50, 30);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 1;
+      dirLight.shadow.camera.far = 200;
+      dirLight.shadow.camera.left = -100;
+      dirLight.shadow.camera.right = 100;
+      dirLight.shadow.camera.top = 100;
+      dirLight.shadow.camera.bottom = -100;
+      scene.add(dirLight);
+
+      // Skybox (dark blue)
+      const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+      const skyMaterial = new THREE.MeshBasicMaterial({
+        color: 0x101033,
+        side: THREE.BackSide
+      });
+      const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+      scene.add(sky);
+
+      // Target cubes with metallic material and texture
+      const boxTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/brick_diffuse.jpg');
+      for (let i = 0; i < 10; i++) {
+        const box = new THREE.Mesh(
+          new THREE.BoxGeometry(4, 4, 4),
+          new THREE.MeshStandardMaterial({ map: boxTexture, metalness: 0.3, roughness: 0.7 })
+        );
+        box.position.set(
+          Math.random() * 80 - 40,
+          2,
+          Math.random() * 80 - 40
+        );
+        box.castShadow = true;
+        box.receiveShadow = true;
+        scene.add(box);
+        objects.push(box);
+      }
+
+      // Add this after your cubes are created in init():
+      function spawnZombie() {
+        const zombie = new THREE.Group();
+
+        // Randomize proportions for realism
+        const bodyHeight = 3.8 + Math.random() * 0.6;
+        const bodyWidth = 2.2 + Math.random() * 0.4;
+        const headSize = 1.7 + Math.random() * 0.5;
+        const armLength = 2.2 + Math.random() * 0.5;
+        const legLength = 2.0 + Math.random() * 0.5;
+
+        // Body (torso) with stains
+        const stains = Math.random() > 0.5 ? 0x7b1e1e : 0x3a5f2a;
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: stains,
+          roughness: 0.8,
+          metalness: 0.2
+        });
+        // Torso (upper body, wider at shoulders)
+        const torsoWidthTop = bodyWidth * 1.1;
+        const torsoWidthBottom = bodyWidth * 0.7;
+        const torsoHeight = bodyHeight * 0.6;
+        const torso = new THREE.Mesh(
+          new THREE.BoxGeometry(torsoWidthTop, torsoHeight, 1.2),
+          bodyMat
+        );
+        torso.position.y = legLength + torsoHeight / 2 + bodyHeight * 0.2;
+        zombie.add(torso);
+
+        // Waist (narrower)
+        const waistHeight = bodyHeight * 0.2;
+        const waist = new THREE.Mesh(
+          new THREE.BoxGeometry(bodyWidth * 0.6, waistHeight, 1.1),
+          bodyMat
+        );
+        waist.position.y = legLength + waistHeight / 2 + bodyHeight * 0.1;
+        zombie.add(waist);
+
+        // Hips (slightly wider than waist)
+        const hipsHeight = bodyHeight * 0.2;
+        const hips = new THREE.Mesh(
+          new THREE.BoxGeometry(bodyWidth * 0.8, hipsHeight, 1.2),
+          bodyMat
+        );
+        hips.position.y = legLength + hipsHeight / 2;
+        zombie.add(hips);
+
+        // Neck
+        const neckMat = new THREE.MeshStandardMaterial({ color: 0x7ecb7a, roughness: 0.5, metalness: 0.1 });
+        const neck = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.3 * headSize, 0.25 * headSize, 0.25 * headSize, 8),
+          neckMat
+        );
+        neck.position.y = torso.position.y + torsoHeight / 2 + 0.13;
+        zombie.add(neck);
+
+
+        // Multiple wounds on body
+        const woundCount = 1 + Math.floor(Math.random() * 3);
+        for (let w = 0; w < woundCount; w++) {
+          const wound = new THREE.Mesh(
+            new THREE.SphereGeometry(0.18 + Math.random() * 0.22, 8, 8),
+            new THREE.MeshStandardMaterial({
+              color: 0x7b1e1e + Math.floor(Math.random() * 0x111111),
+              roughness: 0.7,
+              metalness: 0.3
+            })
+          );
+          wound.position.set(
+            (Math.random() - 0.5) * bodyWidth * 0.7,
+            torso.position.y + (Math.random() - 0.5) * bodyHeight * 0.7,
+            0.6
+          );
+          zombie.add(wound);
+        }
+        // Head
+        const headMat = new THREE.MeshStandardMaterial({
+          color: 0x7ecb7a,
+          roughness: 0.5,
+          metalness: 0.1
+        });
+        const head = new THREE.Mesh(
+          new THREE.BoxGeometry(headSize, headSize, headSize * 0.9),
+          headMat
+        );
+        head.position.y = torso.position.y + bodyHeight / 2 + headSize / 2 - 0.2;
+        head.rotation.z = (Math.random() - 0.5) * 0.3; // random tilt
+        zombie.add(head);
+
+        // Wound on head
+        if (Math.random() > 0.5) {
+          const headWound = new THREE.Mesh(
+            new THREE.SphereGeometry(0.12 + Math.random() * 0.13, 8, 8),
+            new THREE.MeshStandardMaterial({
+              color: 0x8b0000 + Math.floor(Math.random() * 0x111111),
+              roughness: 0.7,
+              metalness: 0.3
+            })
+          );
+          headWound.position.set(
+            (Math.random() - 0.5) * headSize * 0.7,
+            head.position.y + (Math.random() - 0.5) * headSize * 0.7,
+            headSize * 0.45
+          );
+          zombie.add(headWound);
+        }
+
+        // Eyes (glowing)
+        const eyeMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: 0x00ff00,
+          emissiveIntensity: 1.5
+        });
+        const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), eyeMat);
+        const eye2 = eye1.clone();
+        eye1.position.set(-0.32, head.position.y + 0.18, headSize * 0.45);
+        eye2.position.set(0.32, head.position.y + 0.18, headSize * 0.45);
+        zombie.add(eye1, eye2);
+
+        // Nose
+        const noseMat = new THREE.MeshStandardMaterial({ color: 0x5a7f4a });
+        const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.16, 0.32, 8), noseMat);
+        nose.rotation.x = Math.PI / 2;
+        nose.position.set(0, head.position.y - 0.1, headSize * 0.5);
+        zombie.add(nose);
+
+        // Mouth (with teeth, jaw, tongue)
+        const mouthMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.14, 0.08), mouthMat);
+        mouth.position.set(0, head.position.y - 0.38, headSize * 0.48);
+        zombie.add(mouth);
+
+        // Jaw
+        const jawMat = new THREE.MeshStandardMaterial({ color: 0x5a7f4a });
+        const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.08), jawMat);
+        jaw.position.set(0, head.position.y - 0.48, headSize * 0.48);
+        zombie.add(jaw);
+
+        // Tongue
+        const tongueMat = new THREE.MeshStandardMaterial({ color: 0xb22222 });
+        const tongue = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.04), tongueMat);
+        tongue.position.set(0, head.position.y - 0.51, headSize * 0.52);
+        zombie.add(tongue);
+
+        // Teeth
+        const toothMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        for (let t = -2; t <= 2; t++) {
+          const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.04), toothMat);
+          tooth.position.set(t * 0.13, head.position.y - 0.41, headSize * 0.52);
+          zombie.add(tooth);
+        }
+
+        // Ears
+        const earMat = new THREE.MeshStandardMaterial({ color: 0x7ecb7a });
+        const earL = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), earMat);
+        const earR = earL.clone();
+        earL.position.set(-headSize * 0.55, head.position.y + 0.1, 0);
+        earR.position.set(headSize * 0.55, head.position.y + 0.1, 0);
+        zombie.add(earL, earR);
+
+        // Arms (with hands and fingers)
+        const armMat = new THREE.MeshStandardMaterial({ color: 0x3a5f2a, roughness: 0.7 });
+        const handMat = new THREE.MeshStandardMaterial({ color: 0x8fd6a2, roughness: 0.5 });
+        const armL = new THREE.Mesh(new THREE.BoxGeometry(0.7, armLength, 0.7), armMat);
+        const armR = armL.clone();
+        armL.position.set(-bodyWidth / 2 - 0.4, torso.position.y + bodyHeight / 2 - 0.7, 0);
+        armR.position.set(bodyWidth / 2 + 0.4, torso.position.y + bodyHeight / 2 - 0.7, 0);
+        // Hands
+        const handL = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 8), handMat);
+        const handR = handL.clone();
+        handL.position.set(-bodyWidth / 2 - 0.4, torso.position.y + bodyHeight / 2 - armLength / 2 - 0.5, 0);
+        handR.position.set(bodyWidth / 2 + 0.4, torso.position.y + bodyHeight / 2 - armLength / 2 - 0.5, 0);
+        // Fingers
+        for (let f = -2; f <= 2; f++) {
+          const fingerL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.32, 8), handMat);
+          fingerL.position.set(handL.position.x + f * 0.13, handL.position.y - 0.22, 0.18);
+          fingerL.rotation.z = Math.PI / 2.5;
+          zombie.add(fingerL);
+          const fingerR = fingerL.clone();
+          fingerR.position.x = handR.position.x + f * 0.13;
+          fingerR.position.y = handR.position.y - 0.22;
+          zombie.add(fingerR);
+        }
+        zombie.add(armL, armR, handL, handR);
+
+        // Legs (with feet and toes)
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 });
+        const footMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+        const legL = new THREE.Mesh(new THREE.BoxGeometry(0.6, legLength, 0.6), legMat);
+        const legR = legL.clone();
+        legL.position.set(-0.5, legLength / 2, 0);
+        legR.position.set(0.5, legLength / 2, 0);
+        // Feet
+        const footL = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 1), footMat);
+        const footR = footL.clone();
+        footL.position.set(-0.6, 0, 0.3);
+        footR.position.set(0.6, 0, 0.3);
+        // Toes
+        for (let t = -1; t <= 1; t++) {
+          const toeL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.18, 8), footMat);
+          toeL.position.set(footL.position.x + t * 0.13, footL.position.y - 0.13, 0.65);
+          toeL.rotation.x = Math.PI / 2;
+          zombie.add(toeL);
+          const toeR = toeL.clone();
+          toeR.position.x = footR.position.x + t * 0.13;
+          toeR.position.y = footR.position.y - 0.13;
+          zombie.add(toeR);
+        }
+        zombie.add(legL, legR, footL, footR);
+
+        // Randomize arm rotation for variety
+        armL.rotation.z = Math.random() * 0.4 - 0.2;
+        armR.rotation.z = Math.random() * 0.4 - 0.2;
+
+        // Start at a random position
+        zombie.position.set(
+          Math.random() * 80 - 40,
+          0,
+          Math.random() * 80 - 40
+        );
+        zombie.userData = { alive: true };
+        scene.add(zombie);
+        enemies.push(zombie);
+      }
+
+      // Spawn a few zombies after cubes:
+      for (let i = 0; i < 3; i++) {
+        spawnZombie();
+      }
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.body.appendChild(renderer.domElement);
+
+      // Controls
+      controls = new PointerLockControls(camera, document.body);
+
+      document.getElementById('instructions').addEventListener('click', () => {
+        controls.lock();
+      });
+
+      controls.addEventListener('lock', () => {
+        document.getElementById('instructions').style.display = 'none';
+      });
+      controls.addEventListener('unlock', () => {
+        document.getElementById('instructions').style.display = '';
+      });
+
+      scene.add(controls.getObject());
+
+      // Movement
+      const move = { forward: false, backward: false, left: false, right: false };
+      const velocity = new THREE.Vector3();
+
+      document.addEventListener('keydown', (e) => {
+        switch (e.code) {
+          case 'KeyW': move.forward = true; break;
+          case 'KeyS': move.backward = true; break;
+          case 'KeyA': move.left = true; break;
+          case 'KeyD': move.right = true; break;
+          case 'Space':
+            if (controls.isLocked) shoot();
+            break;
+        }
+      });
+      document.addEventListener('keyup', (e) => {
+        switch (e.code) {
+          case 'KeyW': move.forward = false; break;
+          case 'KeyS': move.backward = false; break;
+          case 'KeyA': move.left = false; break;
+          case 'KeyD': move.right = false; break;
+        }
+      });
+
+      // Shooting
+      document.addEventListener('mousedown', (e) => {
+        if (e.button === 0 && controls.isLocked) {
+          shoot();
+        }
+      });
+
+      function shoot() {
+        const bullet = new THREE.Mesh(
+          new THREE.SphereGeometry(0.3, 16, 16),
+          new THREE.MeshStandardMaterial({ color: 0xffff00, metalness: 0.8, roughness: 0.2 })
+        );
+        bullet.position.copy(camera.position);
+        bullet.castShadow = true;
+        // Direction
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        bullet.userData = { velocity: dir.clone().multiplyScalar(2) };
+        scene.add(bullet);
+        bullets.push(bullet);
+      }
+
+      // Animation loop
+      function animateLoop() {
+        requestAnimationFrame(animateLoop);
+
+        // Move player
+        if (controls.isLocked) {
+          velocity.set(0, 0, 0);
+          const speed = 0.2;
+          if (move.forward) velocity.z -= speed;
+          if (move.backward) velocity.z += speed;
+          if (move.left) velocity.x -= speed;
+          if (move.right) velocity.x += speed;
+          controls.moveRight(velocity.x);
+          controls.moveForward(velocity.z);
+        }
+
+        // Move bullets
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const b = bullets[i];
+          b.position.add(b.userData.velocity);
+          // Remove if too far
+          if (b.position.distanceTo(camera.position) > 100) {
+            scene.remove(b);
+            bullets.splice(i, 1);
+            continue;
+          }
+          // Collision with cubes
+          for (let j = objects.length - 1; j >= 0; j--) {
+            if (b.position.distanceTo(objects[j].position) < 2.5) {
+              scene.remove(objects[j]);
+              objects.splice(j, 1);
+              scene.remove(b);
+              bullets.splice(i, 1);
+              break;
+            }
+          }
+        }
+
+        // Move zombies and check collision:
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          const zombie = enemies[i];
+          if (!zombie.userData.alive) continue;
+          // Move zombie toward player
+          const dir = new THREE.Vector3();
+          dir.subVectors(camera.position, zombie.position).setY(0).normalize();
+          // Shambling effect
+          zombie.position.add(dir.multiplyScalar(0.045 + Math.abs(Math.sin(performance.now() * 0.001 + i)) * 0.01));
+          // Face the player
+          zombie.lookAt(camera.position.x, camera.position.y + 1.5, camera.position.z);
+
+          // Head bob and arm swing for shambling
+          const t = performance.now() * 0.002 + i;
+          if (zombie.children.length > 1) {
+            // Head bob
+            zombie.children[1].position.y += Math.sin(t) * 0.02;
+          }
+
+          // Check collision with player
+          if (zombie.position.distanceTo(camera.position) < 2.2) {
+            if (playerHealth > 0) {
+              playerHealth -= 0.3;
+              document.getElementById('health').innerText = 'Health: ' + Math.max(0, Math.floor(playerHealth));
+              if (playerHealth <= 0) {
+                document.getElementById('health').innerText = 'Health: 0 (Game Over)';
+              }
+            }
+          }
+        }
+
+        // Bullet-zombie collision:
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const b = bullets[i];
+          // Collision with zombies
+          for (let j = enemies.length - 1; j >= 0; j--) {
+            const zombie = enemies[j];
+            if (zombie.userData.alive && b.position.distanceTo(zombie.position) < 1.5) {
+              scene.remove(zombie);
+              zombie.userData.alive = false;
+              scene.remove(b);
+              bullets.splice(i, 1);
+              break;
+            }
+          }
+        }
+        // After the above loop, add this to clean up dead zombies:
+        enemies = enemies.filter(z => z.userData.alive);
+
+        renderer.render(scene, camera);
+      }
+      animateLoop();
+    }
+
+    init();
+  </script>
+</body>
+
+</html>
