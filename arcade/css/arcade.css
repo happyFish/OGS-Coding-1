@@ -3,7 +3,7 @@ body {
     background-image: url('https://as2.ftcdn.net/v2/jpg/08/65/94/69/1000_F_865946990_ZipFK7hztxjXEZFnoqnbiLW2lntjk5JR.jpg');
     background-attachment: fixed;
     background-size: cover;
-    font-family: 'Retro Font', sans-serif;
+    font-family: 'fonts/PublicPixel-rv0pA.ttf', 'Retro Font', sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -18,6 +18,15 @@ body {
     gap: 20px;
     max-width: 1200px;
     margin-bottom: 25px;
+}
+
+h1 {
+    color: #fff;
+    text-shadow: 2px 2px 4px #000;
+    font-size: 48px;
+    margin-bottom: 20px;
+    letter-spacing: 5px;
+    text-shadow: 0 0 8px #0ff, 0 0 4px #f00;
 }
 
 .arcade-machine {
@@ -45,5 +54,5 @@ body {
 
 @font-face {
     font-family: 'Retro Font';
-    src: url('../assets/fonts/retro-font.ttf') format('truetype');
+    src: url('../fonts/PublicPixel-rv0pA.ttf') format('truetype');
 }
