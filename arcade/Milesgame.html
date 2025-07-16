@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horror FPS - Shadow Hunt</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            cursor: none;
+        }
+        
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+        
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #ff0000;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+        
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ff0000;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #888;
+            font-size: 14px;
+            text-align: right;
+            z-index: 100;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+            display: none;
+            text-align: center;
+        }
+        
+        #flashlight {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at 50% 50%, transparent 0%, transparent 30%, rgba(0,0,0,0.9) 70%);
+            pointer-events: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="crosshair"></div>
+    <div id="flashlight"></div>
+    
+    <div id="ui">
+        <div>Health: <span id="health">100</span></div>
+        <div>Ammo: <span id="ammo">30</span>/90</div>
+        <div>Score: <span id="score">0</span></div>
+        <div>Enemies: <span id="enemyCount">5</span></div>
+    </div>
+    
+    <div id="instructions">
+        <div>WASD: Move</div>
+        <div>Mouse: Look</div>
+        <div>Click: Shoot</div>
+        <div>R: Reload</div>
+    </div>
+    
+    <div id="gameOver">
+        <div id="gameOverText">GAME OVER</div>
+        <div style="font-size: 24px; margin-top: 20px;">Press F5 to restart</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameRunning = true;
+        let mouseX = 0;
+        let mouseY = 0;
+        let keys = {};
+        
+        // Player state
+        const player = {
+            x: 400,
+            y: 300,
+            angle: 0,
+            health: 100,
+            ammo: 30,
+            totalAmmo: 90,
+            score: 0,
+            speed: 3,
+            shootCooldown: 0
+        };
+        
+        // Game world
+        const world = {
+            width: 1600,
+            height: 1200,
+            walls: [
+                // Outer walls
+                {x: 0, y: 0, width: 1600, height: 50},
+                {x: 0, y: 0, width: 50, height: 1200},
+                {x: 1550, y: 0, width: 50, height: 1200},
+                {x: 0, y: 1150, width: 1600, height: 50},
+                
+                // Inner maze walls
+                {x: 200, y: 200, width: 200, height: 50},
+                {x: 500, y: 100, width: 50, height: 200},
+                {x: 700, y: 200, width: 200, height: 50},
+                {x: 1000, y: 100, width: 50, height: 300},
+                {x: 1200, y: 300, width: 200, height: 50},
+                {x: 200, y: 500, width: 300, height: 50},
+                {x: 600, y: 400, width: 50, height: 200},
+                {x: 800, y: 600, width: 200, height: 50},
+                {x: 1100, y: 500, width: 300, height: 50},
+                {x: 300, y: 800, width: 50, height: 200},
+                {x: 700, y: 900, width: 200, height: 50},
+                {x: 1200, y: 800, width: 50, height: 200},
+            ]
+        };
+        
+        // Enemies
+        let enemies = [];
+        const enemyCount = 5;
+        
+        // Bullets
+        let bullets = [];
+        
+        // Particles for effects
+        let particles = [];
+        
+        // Audio context for sound effects (basic beep sounds)
+        let audioCtx;
+        
+        // Initialize audio
+        function initAudio() {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+        
+        // Play sound effect
+        function playSound(frequency, duration, type = 'sine') {
+            if (!audioCtx) return;
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+            
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+        
+        // Enemy class
+        class Enemy {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.angle = Math.random() * Math.PI * 2;
+                this.health = 30;
+                this.speed = 1;
+                this.attackCooldown = 0;
+                this.size = 20;
+                this.aggroRange = 200;
+                this.attackRange = 50;
+                this.lastSeen = 0;
+            }
+            
+            update() {
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Check if player is in range
+                if (distance < this.aggroRange) {
+                    this.lastSeen = Date.now();
+                    
+                    // Move towards player
+                    if (distance > this.attackRange) {
+                        const moveX = (dx / distance) * this.speed;
+                        const moveY = (dy / distance) * this.speed;
+                        
+                        // Check collision before moving
+                        if (!this.checkWallCollision(this.x + moveX, this.y)) {
+                            this.x += moveX;
+                        }
+                        if (!this.checkWallCollision(this.x, this.y + moveY)) {
+                            this.y += moveY;
+                        }
+                    }
+                    
+                    // Attack player
+                    if (distance < this.attackRange && this.attackCooldown <= 0) {
+                        this.attackPlayer();
+                        this.attackCooldown = 60; // 1 second at 60 FPS
+                    }
+                } else if (Date.now() - this.lastSeen > 3000) {
+                    // Wander randomly if haven't seen player recently
+                    this.angle += (Math.random() - 0.5) * 0.2;
+                    const moveX = Math.cos(this.angle) * this.speed * 0.5;
+                    const moveY = Math.sin(this.angle) * this.speed * 0.5;
+                    
+                    if (!this.checkWallCollision(this.x + moveX, this.y + moveY)) {
+                        this.x += moveX;
+                        this.y += moveY;
+                    } else {
+                        this.angle += Math.PI / 2;
+                    }
+                }
+                
+                if (this.attackCooldown > 0) {
+                    this.attackCooldown--;
+                }
+            }
+            
+            checkWallCollision(x, y) {
+                for (let wall of world.walls) {
+                    if (x < wall.x + wall.width && x + this.size > wall.x &&
+                        y < wall.y + wall.height && y + this.size > wall.y) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            attackPlayer() {
+                player.health -= 15;
+                playSound(150, 0.2, 'sawtooth');
+                
+                // Add blood particles
+                for (let i = 0; i < 5; i++) {
+                    particles.push({
+                        x: player.x,
+                        y: player.y,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        life: 30,
+                        color: '#ff0000'
+                    });
+                }
+                
+                if (player.health <= 0) {
+                    gameOver();
+                }
+            }
+            
+            takeDamage(damage) {
+                this.health -= damage;
+                playSound(200, 0.1, 'square');
+                
+                // Add damage particles
+                for (let i = 0; i < 3; i++) {
+                    particles.push({
+                        x: this.x,
+                        y: this.y,
+                        vx: (Math.random() - 0.5) * 6,
+                        vy: (Math.random() - 0.5) * 6,
+                        life: 20,
+                        color: '#ffff00'
+                    });
+                }
+            }
+        }
+        
+        // Bullet class
+        class Bullet {
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                this.vx = Math.cos(angle) * 8;
+                this.vy = Math.sin(angle) * 8;
+                this.life = 100;
+                this.size = 3;
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+                
+                // Check wall collision
+                for (let wall of world.walls) {
+                    if (this.x < wall.x + wall.width && this.x + this.size > wall.x &&
+                        this.y < wall.y + wall.height && this.y + this.size > wall.y) {
+                        this.life = 0;
+                        
+                        // Add spark particles
+                        for (let i = 0; i < 5; i++) {
+                            particles.push({
+                                x: this.x,
+                                y: this.y,
+                                vx: (Math.random() - 0.5) * 4,
+                                vy: (Math.random() - 0.5) * 4,
+                                life: 15,
+                                color: '#ffaa00'
+                            });
+                        }
+                        break;
+                    }
+                }
+                
+                // Check enemy collision
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    const dx = this.x - enemy.x;
+                    const dy = this.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < enemy.size) {
+                        enemy.takeDamage(25);
+                        this.life = 0;
+                        
+                        if (enemy.health <= 0) {
+                            enemies.splice(i, 1);
+                            player.score += 100;
+                            
+                            // Death particles
+                            for (let j = 0; j < 10; j++) {
+                                particles.push({
+                                    x: enemy.x,
+                                    y: enemy.y,
+                                    vx: (Math.random() - 0.5) * 8,
+                                    vy: (Math.random() - 0.5) * 8,
+                                    life: 40,
+                                    color: '#ff0000'
+                                });
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Initialize enemies
+        function spawnEnemies() {
+            enemies = [];
+            for (let i = 0; i < enemyCount; i++) {
+                let x, y;
+                let attempts = 0;
+                
+                do {
+                    x = Math.random() * (world.width - 100) + 50;
+                    y = Math.random() * (world.height - 100) + 50;
+                    attempts++;
+                } while (checkWallCollision(x, y, 20) && attempts < 100);
+                
+                if (attempts < 100) {
+                    enemies.push(new Enemy(x, y));
+                }
+            }
+        }
+        
+        // Check wall collision
+        function checkWallCollision(x, y, size = 20) {
+            for (let wall of world.walls) {
+                if (x < wall.x + wall.width && x + size > wall.x &&
+                    y < wall.y + wall.height && y + size > wall.y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Event listeners
+        canvas.addEventListener('click', () => {
+            if (!gameRunning) return;
+            
+            if (!audioCtx) {
+                initAudio();
+            }
+            
+            shoot();
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (!gameRunning) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            
+            // Calculate angle from center
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            player.angle = Math.atan2(mouseY - centerY, mouseX - centerX);
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            
+            if (e.code === 'KeyR') {
+                reload();
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+        
+        // Player movement
+        function updatePlayer() {
+            if (!gameRunning) return;
+            
+            let moveX = 0;
+            let moveY = 0;
+            
+            if (keys['KeyW'] || keys['ArrowUp']) moveY -= player.speed;
+            if (keys['KeyS'] || keys['ArrowDown']) moveY += player.speed;
+            if (keys['KeyA'] || keys['ArrowLeft']) moveX -= player.speed;
+            if (keys['KeyD'] || keys['ArrowRight']) moveX += player.speed;
+            
+            // Normalize diagonal movement
+            if (moveX !== 0 && moveY !== 0) {
+                moveX *= 0.707;
+                moveY *= 0.707;
+            }
+            
+            // Check collision and move
+            if (!checkWallCollision(player.x + moveX, player.y, 15)) {
+                player.x += moveX;
+            }
+            if (!checkWallCollision(player.x, player.y + moveY, 15)) {
+                player.y += moveY;
+            }
+            
+            // Keep player in bounds
+            player.x = Math.max(25, Math.min(world.width - 25, player.x));
+            player.y = Math.max(25, Math.min(world.height - 25, player.y));
+            
+            if (player.shootCooldown > 0) {
+                player.shootCooldown--;
+            }
+        }
+        
+        // Shooting
+        function shoot() {
+            if (player.ammo <= 0 || player.shootCooldown > 0) return;
+            
+            player.ammo--;
+            player.shootCooldown = 15; // Quarter second cooldown
+            
+            bullets.push(new Bullet(player.x, player.y, player.angle));
+            playSound(400, 0.1, 'square');
+        }
+        
+        // Reload
+        function reload() {
+            if (player.totalAmmo <= 0 || player.ammo >= 30) return;
+            
+            const needed = 30 - player.ammo;
+            const available = Math.min(needed, player.totalAmmo);
+            
+            player.ammo += available;
+            player.totalAmmo -= available;
+            
+            playSound(300, 0.3, 'triangle');
+        }
+        
+        // Update particles
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.vx *= 0.95;
+                particle.vy *= 0.95;
+                particle.life--;
+                
+                if (particle.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+        
+        // Render game
+        function render() {
+            // Calculate camera offset (keep player centered)
+            const cameraX = player.x - canvas.width / 2;
+            const cameraY = player.y - canvas.height / 2;
+            
+            // Clear screen with dark background
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.translate(-cameraX, -cameraY);
+            
+            // Draw walls
+            ctx.fillStyle = '#444444';
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 2;
+            for (let wall of world.walls) {
+                ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+                ctx.strokeRect(wall.x, wall.y, wall.width, wall.height);
+            }
+            
+            // Draw enemies
+            for (let enemy of enemies) {
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Only draw if close enough (fog of war effect)
+                if (distance < 300) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.strokeStyle = '#aa0000';
+                    ctx.lineWidth = 2;
+                    
+                    // Draw enemy as red circle
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Draw eyes
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(enemy.x - 6, enemy.y - 6, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + 6, enemy.y - 6, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Health bar
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(enemy.x - 15, enemy.y - 30, 30, 4);
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fillRect(enemy.x - 15, enemy.y - 30, (enemy.health / 30) * 30, 4);
+                }
+            }
+            
+            // Draw bullets
+            ctx.fillStyle = '#ffff00';
+            for (let bullet of bullets) {
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw particles
+            for (let particle of particles) {
+                ctx.fillStyle = particle.color;
+                ctx.globalAlpha = particle.life / 30;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            
+            // Draw player
+            ctx.fillStyle = '#0088ff';
+            ctx.strokeStyle = '#0066cc';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Draw player direction
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y);
+            ctx.lineTo(player.x + Math.cos(player.angle) * 20, player.y + Math.sin(player.angle) * 20);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        // Update UI
+        function updateUI() {
+            document.getElementById('health').textContent = Math.max(0, player.health);
+            document.getElementById('ammo').textContent = player.ammo;
+            document.getElementById('score').textContent = player.score;
+            document.getElementById('enemyCount').textContent = enemies.length;
+            
+            // Health bar color
+            const healthElement = document.getElementById('health');
+            if (player.health > 60) {
+                healthElement.style.color = '#00ff00';
+            } else if (player.health > 30) {
+                healthElement.style.color = '#ffff00';
+            } else {
+                healthElement.style.color = '#ff0000';
+            }
+        }
+        
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('gameOver').style.display = 'block';
+            playSound(100, 1, 'sawtooth');
+        }
+        
+        // Check win condition
+        function checkWin() {
+            if (enemies.length === 0) {
+                document.getElementById('gameOverText').textContent = 'VICTORY!';
+                document.getElementById('gameOverText').style.color = '#00ff00';
+                document.getElementById('gameOver').style.display = 'block';
+                gameRunning = false;
+                playSound(800, 0.5, 'sine');
+            }
+        }
+        
+        // Resize canvas and effects
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            document.getElementById('flashlight').style.width = window.innerWidth + 'px';
+            document.getElementById('flashlight').style.height = window.innerHeight + 'px';
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        // Game loop
+        function gameLoop() {
+            if (gameRunning) {
+                updatePlayer();
+                
+                // Update enemies
+                for (let enemy of enemies) {
+                    enemy.update();
+                }
+                
+                // Update bullets
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    bullets[i].update();
+                    if (bullets[i].life <= 0) {
+                        bullets.splice(i, 1);
+                    }
+                }
+                
+                updateParticles();
+                checkWin();
+            }
+            
+            render();
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Initialize game
+        spawnEnemies();
+        gameLoop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D UFO Cow Abduction Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000011;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #gameInfo {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff00;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 14px;
+            z-index: 100;
+            text-align: right;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff00;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #00ff00;
+            display: none;
+        }
+
+        #gameOver button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #00ff00;
+            color: black;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        #gameOver button:hover {
+            background: #00cc00;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00ff00;
+            border-radius: 50%;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        #crosshair::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: #00ff00;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="gameInfo">
+            <div>Score: <span id="score">0</span></div>
+            <div>Cows Abducted: <span id="cowsAbducted">0</span> / <span id="totalCows">15</span></div>
+            <div>Mode: <span id="mode">UFO</span></div>
+            <div>Altitude: <span id="altitude">10</span>m</div>
+        </div>
+        
+        <div id="instructions">
+            <div><strong>3D UFO CONTROLS:</strong></div>
+            <div>WASD - Move UFO/Alien</div>
+            <div>Q/E - Rotate UFO left/right</div>
+            <div>SPACE - Ascend UFO</div>
+            <div>SHIFT - Descend UFO</div>
+            <div>F - Exit/Enter UFO</div>
+            <div>CLICK - Tractor beam / Net</div>
+            <div><br><strong>Mission:</strong> Abduct all cows!</div>
+            <div>Exit UFO to capture cows on foot!</div>
+        </div>
+
+        <div id="crosshair"></div>
+
+        <div id="gameOver">
+            <h2 id="gameOverTitle">Mission Complete!</h2>
+            <p id="gameOverMessage"></p>
+            <button onclick="restartGame()">Start New Mission</button>
+        </div>
+    </div>
+
+    <!-- Three.js CDN -->
+     <script type="importmap">
+        {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.178.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.178.0/examples/jsm/"
+        }
+        }
+        </script>    
+    <script type="module">
+        import * as THREE from 'three';
+        // import CapsuleGeometry from 'three/addons/geometries/CapsuleGeometry';
+        // Game variables
+        let scene, camera, renderer, ufo, tractorBeam, alien, net;
+        let cows = [];
+        let gameRunning = true;
+        let score = 0;
+        let cowsAbducted = 0;
+        let totalCows = 15;
+        let beamActive = false;
+        let isAlienMode = false;
+        let netActive = false;
+        
+        // Controls
+        const keys = {};
+        let mouseX = 0, mouseY = 0;
+        let isMouseDown = false;
+
+        // UFO properties
+        const ufoData = {
+            position: { x: 0, y: 10, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            speed: 0.3,
+            rotationSpeed: 0.05
+        };
+
+        // Alien properties
+        const alienData = {
+            position: { x: 0, y: 1, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            speed: 0.2,
+            rotationSpeed: 0.08
+        };
+
+        // Initialize the game
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x001122, 50, 200);
+
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x001122);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('gameContainer').appendChild(renderer.domElement);
+
+            // Create lighting
+            createLighting();
+            
+            // Create environment
+            createEnvironment();
+            
+            // Create UFO
+            createUFO();
+            
+            // Create alien
+            createAlien();
+            
+            // Create cows
+            createCows();
+            
+            // Setup controls
+            setupControls();
+            
+            // Position camera behind UFO
+            updateCamera();
+            
+            // Start game loop
+            animate();
+        }
+
+        function createLighting() {
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+
+            // Directional light (moon)
+            const moonLight = new THREE.DirectionalLight(0x9999ff, 0.5);
+            moonLight.position.set(50, 50, 50);
+            moonLight.castShadow = true;
+            moonLight.shadow.mapSize.width = 2048;
+            moonLight.shadow.mapSize.height = 2048;
+            scene.add(moonLight);
+
+            // UFO lights
+            const ufoLight = new THREE.PointLight(0x00ff00, 1, 20);
+            ufoLight.position.set(0, 8, 0);
+            scene.add(ufoLight);
+        }
+
+        function createEnvironment() {
+            // Create ground
+            const groundGeometry = new THREE.PlaneGeometry(200, 200);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Create sky dome
+            const skyGeometry = new THREE.SphereGeometry(150, 32, 32);
+            const skyMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x001122, 
+                side: THREE.BackSide 
+            });
+            const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+            scene.add(sky);
+
+            // Add stars
+            createStars();
+
+            // Add trees
+            createTrees();
+        }
+
+        function createStars() {
+            const starGeometry = new THREE.BufferGeometry();
+            const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
+            
+            const starVertices = [];
+            for (let i = 0; i < 1000; i++) {
+                const x = (Math.random() - 0.5) * 300;
+                const y = Math.random() * 100 + 20;
+                const z = (Math.random() - 0.5) * 300;
+                starVertices.push(x, y, z);
+            }
+            
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+            const stars = new THREE.Points(starGeometry, starMaterial);
+            scene.add(stars);
+        }
+
+        function createTrees() {
+            for (let i = 0; i < 30; i++) {
+                const treeGroup = new THREE.Group();
+                
+                // Tree trunk
+                const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.8, 4);
+                const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                trunk.position.y = 2;
+                trunk.castShadow = true;
+                treeGroup.add(trunk);
+                
+                // Tree leaves
+                const leavesGeometry = new THREE.SphereGeometry(3);
+                const leavesMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+                const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
+                leaves.position.y = 5;
+                leaves.castShadow = true;
+                treeGroup.add(leaves);
+                
+                // Random position
+                treeGroup.position.x = (Math.random() - 0.5) * 180;
+                treeGroup.position.z = (Math.random() - 0.5) * 180;
+                
+                scene.add(treeGroup);
+            }
+        }
+
+        function createUFO() {
+            ufo = new THREE.Group();
+            
+            // UFO body (main disc)
+            const bodyGeometry = new THREE.CylinderGeometry(4, 6, 1.5, 16);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xcccccc,
+                shininess: 100 
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.castShadow = true;
+            ufo.add(body);
+            
+            // UFO dome
+            const domeGeometry = new THREE.SphereGeometry(2.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+            const domeMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x87CEEB,
+                transparent: true,
+                opacity: 0.7 
+            });
+            const dome = new THREE.Mesh(domeGeometry, domeMaterial);
+            dome.position.y = 0.75;
+            ufo.add(dome);
+            
+            // UFO lights
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const lightGeometry = new THREE.SphereGeometry(0.3);
+                const lightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                const light = new THREE.Mesh(lightGeometry, lightMaterial);
+                light.position.x = Math.cos(angle) * 5;
+                light.position.z = Math.sin(angle) * 5;
+                light.position.y = -0.5;
+                ufo.add(light);
+                
+                // Add point light
+                const pointLight = new THREE.PointLight(0x00ff00, 0.5, 10);
+                pointLight.position.copy(light.position);
+                ufo.add(pointLight);
+            }
+            
+            ufo.position.copy(ufoData.position);
+            scene.add(ufo);
+            
+            // Create tractor beam
+            createTractorBeam();
+        }
+
+        function createTractorBeam() {
+            const beamGeometry = new THREE.ConeGeometry(6, 15, 8, 1, true);
+            const beamMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffff00,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            tractorBeam = new THREE.Mesh(beamGeometry, beamMaterial);
+            tractorBeam.position.y = -8;
+            tractorBeam.visible = false;
+            ufo.add(tractorBeam);
+        }
+
+        function createAlien() {
+            alien = new THREE.Group();
+            
+            // Alien body
+            const bodyGeometry = new THREE.CapsuleGeometry(0.8, 2);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x90EE90,
+                shininess: 50 
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 1.5;
+            body.castShadow = true;
+            alien.add(body);
+            
+            // Alien head
+            const headGeometry = new THREE.SphereGeometry(1.2, 16, 16);
+            const headMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x90EE90,
+                shininess: 50 
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 3.2;
+            head.castShadow = true;
+            alien.add(head);
+            
+            // Alien eyes
+            for (let i = 0; i < 2; i++) {
+                const eyeGeometry = new THREE.SphereGeometry(0.3);
+                const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const eye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+                eye.position.x = (i === 0) ? -0.4 : 0.4;
+                eye.position.y = 3.4;
+                eye.position.z = 1;
+                alien.add(eye);
+            }
+            
+            // Alien arms
+            for (let i = 0; i < 2; i++) {
+                const armGeometry = new THREE.CapsuleGeometry(0.3, 1.5);
+                const armMaterial = new THREE.MeshPhongMaterial({ color: 0x90EE90 });
+                const arm = new THREE.Mesh(armGeometry, armMaterial);
+                arm.position.x = (i === 0) ? -1.2 : 1.2;
+                arm.position.y = 2;
+                arm.rotation.z = (i === 0) ? 0.3 : -0.3;
+                arm.castShadow = true;
+                alien.add(arm);
+            }
+            
+            // Alien legs
+            for (let i = 0; i < 2; i++) {
+                const legGeometry = new THREE.CapsuleGeometry(0.4, 1.8);
+                const legMaterial = new THREE.MeshPhongMaterial({ color: 0x90EE90 });
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.x = (i === 0) ? -0.5 : 0.5;
+                leg.position.y = 0.9;
+                leg.castShadow = true;
+                alien.add(leg);
+            }
+            
+            alien.position.copy(alienData.position);
+            alien.visible = false; // Start hidden
+            scene.add(alien);
+            
+            // Create net
+            createNet();
+        }
+
+        function createNet() {
+            net = new THREE.Group();
+            
+            // Net rim
+            const rimGeometry = new THREE.TorusGeometry(2, 0.1, 8, 16);
+            const rimMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+            rim.rotation.x = Math.PI / 2;
+            net.add(rim);
+            
+            // Net mesh (using lines to simulate net pattern)
+            const netMaterial = new THREE.LineBasicMaterial({ color: 0x654321 });
+            
+            // Create grid pattern for net
+            for (let i = 0; i <= 8; i++) {
+                const points1 = [];
+                const points2 = [];
+                for (let j = 0; j <= 8; j++) {
+                    const x1 = (i - 4) * 0.5;
+                    const z1 = (j - 4) * 0.5;
+                    const x2 = (j - 4) * 0.5;
+                    const z2 = (i - 4) * 0.5;
+                    
+                    if (Math.sqrt(x1 * x1 + z1 * z1) <= 2) {
+                        points1.push(new THREE.Vector3(x1, -0.5, z1));
+                    }
+                    if (Math.sqrt(x2 * x2 + z2 * z2) <= 2) {
+                        points2.push(new THREE.Vector3(x2, -0.5, z2));
+                    }
+                }
+                
+                if (points1.length > 1) {
+                    const geometry1 = new THREE.BufferGeometry().setFromPoints(points1);
+                    const line1 = new THREE.Line(geometry1, netMaterial);
+                    net.add(line1);
+                }
+                
+                if (points2.length > 1) {
+                    const geometry2 = new THREE.BufferGeometry().setFromPoints(points2);
+                    const line2 = new THREE.Line(geometry2, netMaterial);
+                    net.add(line2);
+                }
+            }
+            
+            // Net handle
+            const handleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 3);
+            const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+            handle.position.y = 1.5;
+            net.add(handle);
+            
+            net.position.set(1.5, 1, 0);
+            net.visible = false;
+            alien.add(net);
+        }
+
+        function createCows() {
+            for (let i = 0; i < totalCows; i++) {
+                const cow = createCow();
+                cow.position.x = (Math.random() - 0.5) * 160;
+                cow.position.z = (Math.random() - 0.5) * 160;
+                cow.position.y = 1;
+                cow.userData = { 
+                    abducted: false, 
+                    abducting: false,
+                    originalY: 1,
+                    targetY: 1
+                };
+                scene.add(cow);
+                cows.push(cow);
+            }
+        }
+
+        function createCow() {
+            const cow = new THREE.Group();
+            
+            // Cow body
+            const bodyGeometry = new THREE.BoxGeometry(3, 1.5, 2);
+            const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.castShadow = true;
+            cow.add(body);
+            
+            // Cow spots
+            for (let i = 0; i < 5; i++) {
+                const spotGeometry = new THREE.SphereGeometry(0.3);
+                const spotMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+                const spot = new THREE.Mesh(spotGeometry, spotMaterial);
+                spot.position.x = (Math.random() - 0.5) * 2.5;
+                spot.position.y = (Math.random() - 0.5) * 1;
+                spot.position.z = (Math.random() - 0.5) * 1.5;
+                cow.add(spot);
+            }
+            
+            // Cow head
+            const headGeometry = new THREE.BoxGeometry(1.2, 1, 1.5);
+            const head = new THREE.Mesh(headGeometry, bodyMaterial);
+            head.position.x = 2;
+            head.position.y = 0.2;
+            head.castShadow = true;
+            cow.add(head);
+            
+            // Cow legs
+            for (let i = 0; i < 4; i++) {
+                const legGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1);
+                const legMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.x = (i < 2) ? 1 : -1;
+                leg.position.z = (i % 2 === 0) ? 0.7 : -0.7;
+                leg.position.y = -1.2;
+                leg.castShadow = true;
+                cow.add(leg);
+            }
+            
+            return cow;
+        }
+
+        function setupControls() {
+            // Keyboard controls
+            document.addEventListener('keydown', (e) => {
+                keys[e.code] = true;
+                
+                // Handle mode switching
+                if (e.code === 'KeyF') {
+                    toggleMode();
+                }
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                keys[e.code] = false;
+            });
+            
+            // Mouse controls
+            document.addEventListener('mousemove', (e) => {
+                mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+                mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+            });
+            
+            document.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                if (isAlienMode) {
+                    netActive = true;
+                } else {
+                    beamActive = true;
+                }
+            });
+            
+            document.addEventListener('mouseup', (e) => {
+                isMouseDown = false;
+                beamActive = false;
+                netActive = false;
+            });
+            
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function toggleMode() {
+            if (isAlienMode) {
+                // Switch back to UFO mode
+                isAlienMode = false;
+                alien.visible = false;
+                ufo.visible = true;
+                
+                // Position UFO near alien
+                ufoData.position.x = alienData.position.x;
+                ufoData.position.z = alienData.position.z;
+                ufoData.position.y = Math.max(alienData.position.y + 5, 10);
+                ufo.position.copy(ufoData.position);
+                
+                document.getElementById('mode').textContent = 'UFO';
+                netActive = false;
+            } else {
+                // Switch to alien mode
+                isAlienMode = true;
+                alien.visible = true;
+                ufo.visible = true; // Keep UFO visible but stationary
+                
+                // Position alien below UFO
+                alienData.position.x = ufoData.position.x;
+                alienData.position.z = ufoData.position.z;
+                alienData.position.y = 1;
+                alien.position.copy(alienData.position);
+                
+                document.getElementById('mode').textContent = 'Alien';
+            }
+        }
+
+        function updateUFO() {
+            if (!gameRunning) return;
+            
+            if (!isAlienMode) {
+                // UFO mode controls
+                if (keys['KeyW']) {
+                    ufoData.position.x += Math.sin(ufoData.rotation.y) * ufoData.speed;
+                    ufoData.position.z += Math.cos(ufoData.rotation.y) * ufoData.speed;
+                }
+                if (keys['KeyS']) {
+                    ufoData.position.x -= Math.sin(ufoData.rotation.y) * ufoData.speed;
+                    ufoData.position.z -= Math.cos(ufoData.rotation.y) * ufoData.speed;
+                }
+                if (keys['KeyA']) {
+                    ufoData.position.x += Math.cos(ufoData.rotation.y) * ufoData.speed;
+                    ufoData.position.z -= Math.sin(ufoData.rotation.y) * ufoData.speed;
+                }
+                if (keys['KeyD']) {
+                    ufoData.position.x -= Math.cos(ufoData.rotation.y) * ufoData.speed;
+                    ufoData.position.z += Math.sin(ufoData.rotation.y) * ufoData.speed;
+                }
+                
+                // Rotation controls
+                if (keys['KeyQ']) {
+                    ufoData.rotation.y += ufoData.rotationSpeed;
+                }
+                if (keys['KeyE']) {
+                    ufoData.rotation.y -= ufoData.rotationSpeed;
+                }
+                
+                // Altitude controls
+                if (keys['Space']) {
+                    ufoData.position.y += ufoData.speed * 0.5;
+                }
+                if (keys['ShiftLeft']) {
+                    ufoData.position.y -= ufoData.speed * 0.5;
+                    if (ufoData.position.y < 3) ufoData.position.y = 3;
+                }
+                
+                // Apply transformations
+                ufo.position.copy(ufoData.position);
+                ufo.rotation.y = ufoData.rotation.y;
+                
+                // Update altitude display
+                document.getElementById('altitude').textContent = Math.round(ufoData.position.y);
+                
+                // Handle tractor beam
+                tractorBeam.visible = beamActive;
+                if (beamActive) {
+                    handleCowAbduction();
+                }
+            } else {
+                // Alien mode controls
+                updateAlien();
+            }
+        }
+
+        function updateAlien() {
+            if (keys['KeyW']) {
+                alienData.position.x += Math.sin(alienData.rotation.y) * alienData.speed;
+                alienData.position.z += Math.cos(alienData.rotation.y) * alienData.speed;
+            }
+            if (keys['KeyS']) {
+                alienData.position.x -= Math.sin(alienData.rotation.y) * alienData.speed;
+                alienData.position.z -= Math.cos(alienData.rotation.y) * alienData.speed;
+            }
+            if (keys['KeyA']) {
+                alienData.position.x += Math.cos(alienData.rotation.y) * alienData.speed;
+                alienData.position.z -= Math.sin(alienData.rotation.y) * alienData.speed;
+            }
+            if (keys['KeyD']) {
+                alienData.position.x -= Math.cos(alienData.rotation.y) * alienData.speed;
+                alienData.position.z += Math.sin(alienData.rotation.y) * alienData.speed;
+            }
+            
+            // Rotation controls
+            if (keys['KeyQ']) {
+                alienData.rotation.y += alienData.rotationSpeed;
+            }
+            if (keys['KeyE']) {
+                alienData.rotation.y -= alienData.rotationSpeed;
+            }
+            
+            // Apply transformations
+            alien.position.copy(alienData.position);
+            alien.rotation.y = alienData.rotation.y;
+            
+            // Update altitude display (alien is always on ground)
+            document.getElementById('altitude').textContent = '1';
+            
+            // Handle net
+            net.visible = netActive;
+            if (netActive) {
+                handleNetCapture();
+            }
+        }
+
+        function handleCowAbduction() {
+            const beamRadius = 6;
+            const beamRange = 15;
+            
+            cows.forEach(cow => {
+                if (cow.userData.abducted) return;
+                
+                const distance = ufo.position.distanceTo(cow.position);
+                const horizontalDistance = Math.sqrt(
+                    Math.pow(ufo.position.x - cow.position.x, 2) + 
+                    Math.pow(ufo.position.z - cow.position.z, 2)
+                );
+                
+                if (horizontalDistance < beamRadius && distance < beamRange) {
+                    cow.userData.abducting = true;
+                    cow.userData.targetY += 0.3;
+                    
+                    if (cow.position.y > ufo.position.y - 2) {
+                        cow.userData.abducted = true;
+                        cowsAbducted++;
+                        score += 150;
+                        updateUI();
+                        cow.visible = false;
+                        
+                        if (cowsAbducted >= totalCows) {
+                            endGame(true);
+                        }
+                    }
+                } else {
+                    cow.userData.abducting = false;
+                    cow.userData.targetY = cow.userData.originalY;
+                }
+                
+                // Animate cow movement
+                if (cow.userData.abducting) {
+                    cow.position.y = THREE.MathUtils.lerp(cow.position.y, cow.userData.targetY, 0.05);
+                } else {
+                    cow.position.y = THREE.MathUtils.lerp(cow.position.y, cow.userData.targetY, 0.1);
+                }
+            });
+        }
+
+        function handleNetCapture() {
+            const netRadius = 2.5;
+            
+            cows.forEach(cow => {
+                if (cow.userData.abducted) return;
+                
+                const distance = alien.position.distanceTo(cow.position);
+                
+                if (distance < netRadius) {
+                    cow.userData.abducted = true;
+                    cowsAbducted++;
+                    score += 200; // Bonus points for manual capture
+                    updateUI();
+                    cow.visible = false;
+                    
+                    if (cowsAbducted >= totalCows) {
+                        endGame(true);
+                    }
+                }
+            });
+        }
+
+        function updateCamera() {
+            // Third-person camera following UFO or Alien
+            const cameraDistance = 15;
+            const cameraHeight = isAlienMode ? 6 : 8;
+            const target = isAlienMode ? alien : ufo;
+            const targetRotation = isAlienMode ? alienData.rotation.y : ufoData.rotation.y;
+            
+            camera.position.x = target.position.x - Math.sin(targetRotation) * cameraDistance;
+            camera.position.y = target.position.y + cameraHeight;
+            camera.position.z = target.position.z - Math.cos(targetRotation) * cameraDistance;
+            
+            camera.lookAt(target.position);
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('cowsAbducted').textContent = cowsAbducted;
+        }
+
+        function endGame(won) {
+            gameRunning = false;
+            const gameOverDiv = document.getElementById('gameOver');
+            const titleEl = document.getElementById('gameOverTitle');
+            const messageEl = document.getElementById('gameOverMessage');
+            
+            if (won) {
+                titleEl.textContent = 'Mission Complete!';
+                messageEl.innerHTML = `Excellent work, Commander!<br>All ${totalCows} cows successfully abducted!<br><br>Final Score: ${score}`;
+                titleEl.style.color = '#00FF00';
+            } else {
+                titleEl.textContent = 'Mission Failed!';
+                messageEl.innerHTML = `Mission failed, Commander!<br>Cows abducted: ${cowsAbducted} / ${totalCows}<br><br>Score: ${score}`;
+                titleEl.style.color = '#FF0000';
+            }
+            
+            gameOverDiv.style.display = 'block';
+        }
+
+        function restartGame() {
+            // Reset game state
+            gameRunning = true;
+            score = 0;
+            cowsAbducted = 0;
+            beamActive = false;
+            isAlienMode = false;
+            netActive = false;
+            
+            // Reset UFO position
+            ufoData.position = { x: 0, y: 10, z: 0 };
+            ufoData.rotation = { x: 0, y: 0, z: 0 };
+            
+            // Reset alien position
+            alienData.position = { x: 0, y: 1, z: 0 };
+            alienData.rotation = { x: 0, y: 0, z: 0 };
+            
+            // Set visibility
+            ufo.visible = true;
+            alien.visible = false;
+            
+            // Remove old cows
+            cows.forEach(cow => scene.remove(cow));
+            cows = [];
+            
+            // Create new cows
+            createCows();
+            
+            // Update UI
+            updateUI();
+            document.getElementById('mode').textContent = 'UFO';
+            document.getElementById('altitude').textContent = '10';
+            
+            // Hide game over screen
+            document.getElementById('gameOver').style.display = 'none';
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            updateUFO();
+            updateCamera();
+            
+            // Animate tractor beam
+            if (tractorBeam && beamActive) {
+                tractorBeam.rotation.y += 0.1;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Initialize game when page loads
+        init();
+    </script>
+</body>
+</html>
