@@ -1,13 +1,45 @@
-const names = [
-    "Adamo", "Felix", "Gabe", "Hudson",
-    "Lex", "Luca", "Miles", "Milo", "Oliver"
-];
+class Arcade {
+    constructor() {
+        this.container = document.querySelector('.arcade-container');
+        this.machines = document.querySelector('.machines');
+        this.iframe = document.createElement('iframe');
 
-const container = document.querySelector('.arcade-container');
+        this.container.appendChild(this.iframe);
 
-names.forEach(name => {
-    const machine = document.createElement('div');
-    machine.className = 'arcade-machine';
-    machine.innerHTML = `<h2>${name}</h2>`;
-    container.appendChild(machine);
-});
+        this.init();
+    }
+
+    init() {
+        this.createMachines();
+    }
+
+    loadMachine(name) {
+        // Read all the html files in the ${name} directory
+        const gameUrl = `./${name.toLowerCase()}/`;
+        const iframe = document.querySelector('iframe');
+        iframe.src = `${gameUrl}`;
+        this.container.classList.add('machine');
+    }
+
+    createMachines() {
+        const names = [
+            "Adamo", "Felix", "Gabe", "Hudson",
+            "Lex", "Luca", "Miles", "Milo", "Oliver",
+            "Chris"
+        ];
+
+        names.forEach(name => {
+            const machine = document.createElement('div');
+            machine.className = 'arcade-machine';
+            machine.innerHTML = `<h2>${name}</h2>`;
+            this.machines.appendChild(machine);
+
+            machine.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.loadMachine(name);
+            });
+        });
+    }
+};
+
+const arcade = new Arcade();

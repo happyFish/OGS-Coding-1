@@ -14,10 +14,15 @@ body {
 
 .arcade-container {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
     gap: 20px;
-    max-width: 1200px;
+    /* max-width: 1200px; */
+}
+
+.machines {
+    display: grid;
+    gap: 20px;
     margin-bottom: 25px;
+    grid-template-columns: repeat(3, 1fr);
 }
 
 h1 {
@@ -25,8 +30,43 @@ h1 {
     text-shadow: 2px 2px 4px #000;
     font-size: 48px;
     margin-bottom: 20px;
+    text-align: center;
     letter-spacing: 5px;
     text-shadow: 0 0 8px #0ff, 0 0 4px #f00;
+}
+
+.arcade-container.machine {
+    grid-template-columns: auto 1fr;
+    height: 100%;
+    width: 100%;
+    grid-template-rows: 150px 1fr;
+}
+
+iframe {
+    display: none;
+}
+
+.machine iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    box-shadow: 0 0 20px #f00, 0 0 40px #0ff inset;
+    display: block;
+    grid-column: 1;
+    grid-column-end: none;
+}
+
+.machine h1 {
+    font-size: 80%;
+}
+
+.machine .machines {
+    gap: 2px;
+    grid-template-columns: repeat(11, auto);
+}
+
+.machine .arcade-machine {
+    padding: 0;
 }
 
 .arcade-machine {
