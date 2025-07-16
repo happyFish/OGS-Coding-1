@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Platform Game</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        body { background: #181818; }
+        #info { color: #fff; text-align: center; font-family: Arial, sans-serif; font-size: 1.2em; margin: 10px; position: absolute; width: 100%; z-index: 10; }
+        canvas { display: block; position: absolute; top: 0; left: 0; width: 100vw !important; height: 100vh !important; }
+    </style>
+</head>
+<body>
+    <div id="info">WASD/Arrow keys = Move | Space = Jump</div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+    <script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222233);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Lighting
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
+    light.position.set(5, 10, 7);
+    scene.add(light);
+
+    // Add ambient light for overall brightness
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    // Player
+    const playerSize = 1;
+    const playerColor = 0xff2222; // Red
+    const protagonistName = 'coolkid';
+    // Remove old player cube
+    // const playerGeo = new THREE.BoxGeometry(playerSize, playerSize, playerSize);
+    // const playerMat = new THREE.MeshLambertMaterial({ color: 0x00aaff });
+    // const player = new THREE.Mesh(playerGeo, playerMat);
+    // player.position.set(0, 2, 0);
+    // scene.add(player);
+    // Add a red humanoid player
+    const player = new THREE.Group();
+    // Body
+    const pBody = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.1, 16), new THREE.MeshLambertMaterial({ color: playerColor }));
+    pBody.position.set(0, 0.55, 0);
+    player.add(pBody);
+    // Head
+    const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshLambertMaterial({ color: playerColor }));
+    pHead.position.set(0, 1.25, 0);
+    player.add(pHead);
+    // Arms
+    const pArmL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), new THREE.MeshLambertMaterial({ color: playerColor }));
+    pArmL.position.set(-0.48, 0.85, 0);
+    pArmL.rotation.z = Math.PI / 6;
+    player.add(pArmL);
+    const pArmR = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), new THREE.MeshLambertMaterial({ color: playerColor }));
+    pArmR.position.set(0.48, 0.85, 0);
+    pArmR.rotation.z = -Math.PI / 6;
+    player.add(pArmR);
+    // Legs
+    const pLegL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), new THREE.MeshLambertMaterial({ color: playerColor }));
+    pLegL.position.set(-0.22, 0.18, 0.18);
+    pLegL.rotation.x = Math.PI / 16;
+    player.add(pLegL);
+    const pLegR = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), new THREE.MeshLambertMaterial({ color: playerColor }));
+    pLegR.position.set(0.22, 0.18, 0.18);
+    pLegR.rotation.x = Math.PI / 16;
+    player.add(pLegR);
+    player.position.set(0, 2, 0);
+    scene.add(player);
+
+    // Ground
+    const groundGeo = new THREE.BoxGeometry(60, 1, 60);
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x00cc44 }); // Green ground for first map
+    let ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.position.set(0, -0.5, 0);
+    scene.add(ground);
+
+    // Platforms (spread out)
+    let platforms = [];
+    const loader = new THREE.TextureLoader();
+    let platformTexture = null;
+    loader.load(
+        'https://preview.redd.it/debatable-opinion-on-coolkid-image-unrelated-v0-ymefl8fiugye1.jpeg?auto=webp&s=3b2aa7143b0f627cddfcfddddfd30fc5de89a1b3',
+        function(tex) {
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(2, 2);
+            platformTexture = tex;
+            // Replace all platform materials with a new one using the texture
+            for (const mesh of platforms) {
+                mesh.material = new THREE.MeshLambertMaterial({ map: tex, color: 0xffffff });
+                mesh.material.needsUpdate = true;
+            }
+        },
+        undefined,
+        function(err) {
+            console.error('Texture load error', err);
+        }
+    );
+    function addPlatform(x, y, z, w=4, h=0.5, d=4) {
+        const geo = new THREE.BoxGeometry(w, h, d);
+        let mat;
+        if (platformTexture) {
+            mat = new THREE.MeshLambertMaterial({ map: platformTexture, color: 0xffffff });
+        } else {
+            mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        }
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        scene.add(mesh);
+        platforms.push(mesh);
+        // If texture loads after platform creation, update material
+        if (platformTexture) {
+            mesh.material = new THREE.MeshLambertMaterial({ map: platformTexture, color: 0xffffff });
+            mesh.material.needsUpdate = true;
+        }
+    }
+    // Ensure all platforms get the texture if it loads after their creation
+    function updateAllPlatformTextures() {
+        if (!platformTexture) return;
+        for (const mesh of platforms) {
+            mesh.material.map = platformTexture;
+            mesh.material.color.set(0xffffff);
+            mesh.material.needsUpdate = true;
+        }
+    }
+    // Call this after all platforms are created, in case texture loaded late
+    if (platformTexture) updateAllPlatformTextures();
+    addPlatform(8, 2, -10);
+    addPlatform(-10, 4, 10);
+    addPlatform(0, 7, 15);
+    addPlatform(15, 10, -12);
+    addPlatform(-20, 13, 0);
+    addPlatform(20, 16, 20);
+    addPlatform(-15, 19, -15);
+    addPlatform(10, 22, 10);
+    addPlatform(0, 25, -20);
+    // Additional platforms for more challenge and variety
+    addPlatform(-25, 5, 25);
+    addPlatform(25, 8, -25);
+    addPlatform(-30, 12, -10);
+    addPlatform(30, 15, 10);
+    addPlatform(-18, 18, 22);
+    addPlatform(18, 21, -22);
+    addPlatform(0, 28, 0);
+    addPlatform(-12, 30, 18);
+    addPlatform(12, 33, -18);
+    addPlatform(0, 36, 25);
+    addPlatform(0, 40, -30);
+    // More platforms for extra challenge
+    addPlatform(-35, 10, 0);
+    addPlatform(35, 12, 0);
+    addPlatform(0, 15, 35);
+    addPlatform(0, 18, -35);
+    addPlatform(-25, 22, -25);
+    addPlatform(25, 25, 25);
+    addPlatform(-20, 30, 20);
+    addPlatform(20, 33, -20);
+    addPlatform(-10, 38, 30);
+    addPlatform(10, 41, -30);
+    addPlatform(0, 45, 0);
+    // Even more platforms for vertical and lateral challenge
+    addPlatform(-40, 8, 10);
+    addPlatform(40, 14, -10);
+    addPlatform(-30, 20, 30);
+    addPlatform(30, 26, -30);
+    addPlatform(-20, 32, 20);
+    addPlatform(20, 38, -20);
+    addPlatform(-10, 44, 10);
+    addPlatform(10, 50, -10);
+    addPlatform(0, 55, 0);
+    addPlatform(-15, 52, 15);
+    addPlatform(15, 48, -15);
+    addPlatform(-25, 35, 25);
+    addPlatform(25, 42, -25);
+
+    // Add barriers at the edge of the map (make them tall walls)
+    function addBarrier(x, y, z, w, h, d) {
+        const geo = new THREE.BoxGeometry(w, h, d);
+        const mat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        scene.add(mesh);
+        platforms.push(mesh); // Make barriers collidable like platforms
+    }
+    const barrierHeight = 60; // Make walls as tall as the map is wide
+    const barrierThickness = 1;
+    const mapSize = 60;
+    // Four barriers around the ground (walls)
+    addBarrier(0, barrierHeight/2, -mapSize/2, mapSize, barrierHeight, barrierThickness); // back
+    addBarrier(0, barrierHeight/2, mapSize/2, mapSize, barrierHeight, barrierThickness); // front
+    addBarrier(-mapSize/2, barrierHeight/2, 0, barrierThickness, barrierHeight, mapSize); // left
+    addBarrier(mapSize/2, barrierHeight/2, 0, barrierThickness, barrierHeight, mapSize); // right
+
+    // Add a sun (yellow sphere in the sky) with emissive material for visibility
+    const sunGeo = new THREE.SphereGeometry(4, 32, 32);
+    const sunMat = new THREE.MeshPhongMaterial({ color: 0xFFFF44, emissive: 0xFFFF44, emissiveIntensity: 2 }); // Brighter emissive
+    const sun = new THREE.Mesh(sunGeo, sunMat);
+    sun.position.set(0, 58, 0); // Place sun at the top center of the map
+    scene.add(sun);
+    // Add a much brighter PointLight at the sun's position for extra effect
+    const sunLight = new THREE.PointLight(0xFFFFAA, 3.5, 400); // Brighter and longer range
+    sunLight.position.copy(sun.position);
+    scene.add(sunLight);
+
+    // --- Add a little bridge at the top and an exit ---
+    // Bridge: a series of small platforms leading from the top of the right wall to the exit, now rotated to go along the X axis (from right wall toward center)
+    const bridgeY = 58; // Same height as sun
+    const bridgeLength = 6; // Number of bridge segments
+    const bridgeStartX = 27.5; // Move bridge 2.5 units inward from the right wall (mapSize/2 = 30)
+    const bridgeEndX = 12.5; // Keep same length, move end accordingly
+    const bridgeZ = -10; // Fixed Z (same as entrance)
+    const bridgePlanks = [];
+    for (let i = 0; i < bridgeLength; i++) {
+        const x = bridgeStartX + (bridgeEndX - bridgeStartX) * (i / (bridgeLength - 1));
+        // Bridge planks are platforms for collision
+        const plank = new THREE.Mesh(
+            new THREE.BoxGeometry(2, 0.4, 1.2),
+            new THREE.MeshLambertMaterial({ color: 0x8B5A2B })
+        );
+        plank.position.set(x, bridgeY, bridgeZ);
+        scene.add(plank);
+        platforms.push(plank); // Add to platforms for collision
+        bridgePlanks.push(plank);
+    }
+    // Entrance: a small archway in the right wall at the start of the bridge, rotated to face along the X axis
+    const entranceWidth = 2.2;
+    const entranceHeight = 2.5;
+    const entranceThickness = 1.1;
+    const entranceX = bridgeStartX + 1.1; // Keep X next to bridge
+    const entranceY = bridgeY + entranceHeight/2 - 0.2;
+    const entranceZ = bridgeZ + 0.5; // Move entrance forwards (higher Z) by 0.5 units
+    // Left pillar (now along Z axis)
+    const pillar1 = new THREE.Mesh(
+        new THREE.BoxGeometry(entranceThickness, entranceHeight, 0.4),
+        new THREE.MeshLambertMaterial({ color: 0x444444 })
+    );
+    pillar1.position.set(entranceX, entranceY, entranceZ - entranceWidth/2 + 0.2);
+    scene.add(pillar1);
+    platforms.push(pillar1);
+    // Right pillar
+    const pillar2 = new THREE.Mesh(
+        new THREE.BoxGeometry(entranceThickness, entranceHeight, 0.4),
+        new THREE.MeshLambertMaterial({ color: 0x444444 })
+    );
+    pillar2.position.set(entranceX, entranceY, entranceZ + entranceWidth/2 - 0.2);
+    scene.add(pillar2);
+    platforms.push(pillar2);
+    // Top arch
+    const arch = new THREE.Mesh(
+        new THREE.BoxGeometry(entranceThickness, 0.4, entranceWidth),
+        new THREE.MeshLambertMaterial({ color: 0x444444 })
+    );
+    arch.position.set(entranceX, bridgeY + entranceHeight - 0.2, entranceZ);
+    scene.add(arch);
+    platforms.push(arch);
+    // Add a transparent box for entrance teleport trigger
+    const entranceTriggerGeo = new THREE.BoxGeometry(2.2, 2.5, 1.2);
+    const entranceTriggerMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.15, visible: false });
+    const entranceTrigger = new THREE.Mesh(entranceTriggerGeo, entranceTriggerMat);
+    entranceTrigger.position.set(entranceX, entranceY, entranceZ);
+    scene.add(entranceTrigger);
+    // Exit: a portal/door at the end of the bridge (now at the end of the rotated bridge)
+    const exitGeo = new THREE.TorusGeometry(1, 0.25, 16, 100);
+    const exitMat = new THREE.MeshPhongMaterial({ color: 0x00ffcc, emissive: 0x00ffcc, emissiveIntensity: 1.5 });
+    const exit = new THREE.Mesh(exitGeo, exitMat);
+    exit.position.set(bridgeEndX - 1.5, bridgeY + 1, bridgeZ); // Slightly before last plank
+    exit.rotation.x = Math.PI / 2;
+    scene.add(exit);
+    // Optional: add a glowing light at the exit
+    const exitLight = new THREE.PointLight(0x00ffcc, 2, 10);
+    exitLight.position.copy(exit.position);
+    scene.add(exitLight);
+
+    // Add railings to the bridge
+    const railingHeight = 1.2;
+    const railingThickness = 0.18;
+    const railingOffset = 0.7; // How far from center of plank (Z axis)
+    for (let i = 0; i < bridgeLength; i++) {
+        const x = bridgeStartX + (bridgeEndX - bridgeStartX) * (i / (bridgeLength - 1));
+        // Left railing post
+        const postL = new THREE.Mesh(
+            new THREE.BoxGeometry(railingThickness, railingHeight, railingThickness),
+            new THREE.MeshLambertMaterial({ color: 0x555555 })
+        );
+        postL.position.set(x, bridgeY + railingHeight/2 + 0.2, bridgeZ - railingOffset);
+        scene.add(postL);
+        platforms.push(postL);
+        // Right railing post
+        const postR = new THREE.Mesh(
+            new THREE.BoxGeometry(railingThickness, railingHeight, railingThickness),
+            new THREE.MeshLambertMaterial({ color: 0x555555 })
+        );
+        postR.position.set(x, bridgeY + railingHeight/2 + 0.2, bridgeZ + railingOffset);
+        scene.add(postR);
+        platforms.push(postR);
+        // Horizontal rails (skip for last plank)
+        if (i < bridgeLength - 1) {
+            const nextX = bridgeStartX + (bridgeEndX - bridgeStartX) * ((i+1) / (bridgeLength - 1));
+            // Left horizontal rail
+            const railL = new THREE.Mesh(
+                new THREE.BoxGeometry(Math.abs(nextX - x), railingThickness, railingThickness),
+                new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+            );
+            railL.position.set((x + nextX)/2, bridgeY + railingHeight + 0.2, bridgeZ - railingOffset);
+            scene.add(railL);
+            platforms.push(railL);
+            // Right horizontal rail
+            const railR = new THREE.Mesh(
+                new THREE.BoxGeometry(Math.abs(nextX - x), railingThickness, railingThickness),
+                new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+            );
+            railR.position.set((x + nextX)/2, bridgeY + railingHeight + 0.2, bridgeZ + railingOffset);
+            scene.add(railR);
+            platforms.push(railR);
+        }
+    }
+
+    let gameWon = false;
+    let teleported = false;
+
+    // Controls
+    let velocity = { x: 0, y: 0, z: 0 };
+    let onGround = false;
+    const speed = 0.23; // Increased movement speed
+    const jumpPower = 0.48; // Enhanced jump height
+    const gravity = 0.018;
+    let keys = {};
+    let jumpQueued = false;
+    let jumpsLeft = 2; // Allow double jump
+
+    document.addEventListener('keydown', e => {
+        keys[e.key.toLowerCase()] = true;
+        if ((e.key === ' ' || e.key.toLowerCase() === 'space') && !jumpQueued) {
+            jumpQueued = true;
+        }
+    });
+    document.addEventListener('keyup', e => {
+        keys[e.key.toLowerCase()] = false;
+        if (e.key === ' ' || e.key.toLowerCase() === 'space') {
+            jumpQueued = false;
+        }
+    });
+
+    function checkCollision(obj) {
+        // Full AABB collision for all axes
+        const px = player.position.x, py = player.position.y, pz = player.position.z;
+        for (let plat of [ground, ...platforms]) {
+            const minX = plat.position.x - plat.geometry.parameters.width/2 - playerSize/2;
+            const maxX = plat.position.x + plat.geometry.parameters.width/2 + playerSize/2;
+            const minY = plat.position.y - plat.geometry.parameters.height/2 - playerSize/2;
+            const maxY = plat.position.y + plat.geometry.parameters.height/2 + playerSize/2;
+            const minZ = plat.position.z - plat.geometry.parameters.depth/2 - playerSize/2;
+            const maxZ = plat.position.z + plat.geometry.parameters.depth/2 + playerSize/2;
+            if (
+                px > minX && px < maxX &&
+                py > minY && py < maxY &&
+                pz > minZ && pz < maxZ
+            ) {
+                // Find the axis of minimum penetration
+                const dx = Math.min(maxX - px, px - minX);
+                const dy = Math.min(maxY - py, py - minY);
+                const dz = Math.min(maxZ - pz, pz - minZ);
+                if (dy <= dx && dy <= dz) {
+                    // Collided vertically
+                    if (velocity.y < 0) {
+                        player.position.y = maxY;
+                        velocity.y = 0;
+                        jumpsLeft = 2;
+                    } else if (velocity.y > 0) {
+                        player.position.y = minY;
+                        velocity.y = 0;
+                    }
+                } else if (dx <= dy && dx <= dz) {
+                    // Collided on X axis
+                    if (px < plat.position.x) {
+                        player.position.x = minX;
+                    } else {
+                        player.position.x = maxX;
+                    }
+                    velocity.x = 0;
+                } else {
+                    // Collided on Z axis
+                    if (pz < plat.position.z) {
+                        player.position.z = minZ;
+                    } else {
+                        player.position.z = maxZ;
+                    }
+                    velocity.z = 0;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Camera controls: single click and drag to rotate camera
+    let isCameraDragging = false;
+    let cameraAngle = 0;
+    let cameraElevation = Math.PI / 6;
+    let cameraDistance = 12;
+    let lastMouse = { x: 0, y: 0 };
+
+    renderer.domElement.addEventListener('mousedown', (e) => {
+        isCameraDragging = true;
+        lastMouse.x = e.clientX;
+        lastMouse.y = e.clientY;
+    });
+    window.addEventListener('mouseup', () => {
+        isCameraDragging = false;
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (isCameraDragging) {
+            const dx = e.clientX - lastMouse.x;
+            const dy = e.clientY - lastMouse.y;
+            cameraAngle -= dx * 0.01;
+            // Allow full 360° vertical rotation, but clamp to avoid flipping at poles
+            cameraElevation -= dy * 0.01;
+            cameraElevation = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, cameraElevation));
+            lastMouse.x = e.clientX;
+            lastMouse.y = e.clientY;
+        }
+    });
+
+    function loadSecondMap() {
+        // Copy only the ground from the first map, placed at the second map's location
+        const fieldCenterX = entranceX;
+        const fieldCenterZ = entranceZ;
+        const fieldY = -2;
+        // Remove all platforms and barriers from the first map
+        for (let plat of platforms) {
+            scene.remove(plat);
+        }
+        platforms.length = 0;
+        if (ground) scene.remove(ground);
+        // Add only the ground (dark grey, larger)
+        const mapSize2 = 120; // Make the field much bigger
+        const groundGeo2 = new THREE.BoxGeometry(mapSize2, 1, mapSize2);
+        const groundMat2 = new THREE.MeshLambertMaterial({ color: 0x222222 }); // Dark grey ground
+        ground = new THREE.Mesh(groundGeo2, groundMat2);
+        ground.position.set(fieldCenterX, fieldY - 0.5, fieldCenterZ);
+        scene.add(ground);
+        // No barriers in the second map
+
+        // --- Add a car that chases the player ---
+        // Car properties
+        const carSize = { x: 2, y: 1, z: 3 };
+        const carGeo = new THREE.BoxGeometry(carSize.x, carSize.y, carSize.z);
+        const carMat = new THREE.MeshLambertMaterial({ color: 0x00aaff }); // Car is now the same color as the guy
+        const car = new THREE.Mesh(carGeo, carMat);
+        car.name = 'bluudud';
+        // Place car at the far side of the field, away from player spawn
+        car.position.set(fieldCenterX, fieldY + 0.5, fieldCenterZ + mapSize2/2 - 5);
+        scene.add(car);
+        // Add simple wheels (visual only)
+        const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16);
+        const wheelMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+        for (let wx of [-0.7, 0.7]) {
+            for (let wz of [-1.1, 1.1]) {
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(car.position.x + wx, car.position.y - 0.6, car.position.z + wz);
+                scene.add(wheel);
+                car.add(wheel); // Attach to car for movement
+            }
+        }
+        // Add a bigger person inside the car (same color as player)
+        const personMat = new THREE.MeshLambertMaterial({ color: 0x00aaff });
+        // Body (bigger)
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.1, 16), personMat);
+        body.position.set(0, 0.55, 0);
+        car.add(body);
+        // Head (bigger)
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), personMat);
+        head.position.set(0, 1.25, 0);
+        car.add(head);
+        // Arms (bigger)
+        const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), personMat);
+        armL.position.set(-0.48, 0.85, 0);
+        armL.rotation.z = Math.PI / 6;
+        car.add(armL);
+        const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), personMat);
+        armR.position.set(0.48, 0.85, 0);
+        armR.rotation.z = -Math.PI / 6;
+        car.add(armR);
+        // Legs (bigger)
+        const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), personMat);
+        legL.position.set(-0.22, 0.18, 0.18);
+        legL.rotation.x = Math.PI / 16;
+        car.add(legL);
+        const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12), personMat);
+        legR.position.set(0.22, 0.18, 0.18);
+        legR.rotation.x = Math.PI / 16;
+        car.add(legR);
+        // Store car reference for animate loop
+        loadSecondMap.car = car;
+        loadSecondMap.carField = { x: fieldCenterX, z: fieldCenterZ, size: mapSize2, y: fieldY };
+    }
+
+    // --- Car chase logic in animation loop ---
+    let carChaseActive = false;
+    let carSpeed = 0.18;
+    function animate() {
+        if (gameWon) return; // Stop updating if game is won
+        // Movement relative to camera direction
+        let moveX = 0, moveZ = 0;
+        let forward = [Math.sin(cameraAngle + Math.PI), 0, Math.cos(cameraAngle + Math.PI)];
+        let right = [Math.cos(cameraAngle), 0, -Math.sin(cameraAngle)];
+        if (keys['w'] || keys['arrowup']) {
+            moveX += forward[0] * speed;
+            moveZ += forward[2] * speed;
+        }
+        if (keys['s'] || keys['arrowdown']) {
+            moveX -= forward[0] * speed;
+            moveZ -= forward[2] * speed;
+        }
+        if (keys['a'] || keys['arrowleft']) {
+            moveX -= right[0] * speed;
+            moveZ -= right[2] * speed;
+        }
+        if (keys['d'] || keys['arrowright']) {
+            moveX += right[0] * speed;
+            moveZ += right[2] * speed;
+        }
+        player.position.x += moveX;
+        player.position.z += moveZ;
+        // --- Rotate player to face movement direction ---
+        if (moveX !== 0 || moveZ !== 0) {
+            const angle = Math.atan2(moveX, moveZ); // Yaw angle
+            player.rotation.y = angle;
+        }
+        // Gravity
+        velocity.y -= gravity;
+        player.position.y += velocity.y;
+        // Collision
+        onGround = checkCollision(player);
+        if (jumpQueued && jumpsLeft > 0) {
+            velocity.y = jumpPower;
+            jumpQueued = false;
+            jumpsLeft--;
+        }
+        // Prevent falling through ground
+        if (player.position.y < 0.5) {
+            player.position.y = 0.5;
+            velocity.y = 0;
+            jumpsLeft = 2; // Reset jumps if player falls to ground
+        }
+        // Clamp player to map
+        player.position.x = Math.max(-mapSize/2 + playerSize/2, Math.min(mapSize/2 - playerSize/2, player.position.x));
+        player.position.z = Math.max(-mapSize/2 + playerSize/2, Math.min(mapSize/2 - playerSize/2, player.position.z));
+        // Camera follows player, can be rotated with click + drag
+        const camX = player.position.x + cameraDistance * Math.sin(cameraAngle) * Math.cos(cameraElevation);
+        const camY = player.position.y + cameraDistance * Math.sin(cameraElevation) + 5;
+        const camZ = player.position.z + cameraDistance * Math.cos(cameraAngle) * Math.cos(cameraElevation);
+        camera.position.set(camX, camY, camZ);
+        camera.lookAt(player.position.x, player.position.y, player.position.z);
+        // Teleport to second map if player enters the entrance trigger
+        if (!teleported) {
+            const px = player.position.x, py = player.position.y, pz = player.position.z;
+            const ex = entranceTrigger.position.x, ey = entranceTrigger.position.y, ez = entranceTrigger.position.z;
+            const ew = 2.2, eh = 2.5, ed = 1.2;
+            if (
+                px > ex - ew/2 - playerSize/2 && px < ex + ew/2 + playerSize/2 &&
+                py > ey - eh/2 - playerSize/2 && py < ey + eh/2 + playerSize/2 &&
+                pz > ez - ed/2 - playerSize/2 && pz < ez + ed/2 + playerSize/2
+            ) {
+                teleported = true;
+                loadSecondMap();
+            }
+        }
+        // --- Car chase logic in second map ---
+        if (teleported && loadSecondMap.car) {
+            const car = loadSecondMap.car;
+            const field = loadSecondMap.carField;
+            // Move car toward player (XZ plane only)
+            const dx = player.position.x - car.position.x;
+            const dz = player.position.z - car.position.z;
+            const dist = Math.sqrt(dx*dx + dz*dz);
+            if (dist > 0.1) {
+                const carSpeed = 0.16; // Car speed (slower than player)
+                const vx = (dx / dist) * carSpeed;
+                const vz = (dz / dist) * carSpeed;
+                car.position.x += vx;
+                car.position.z += vz;
+                // Clamp car to field (optional, but now field is much bigger)
+                car.position.x = Math.max(field.x - field.size/2 + 1, Math.min(field.x + field.size/2 - 1, car.position.x));
+                car.position.z = Math.max(field.z - field.size/2 + 1, Math.min(field.z + field.size/2 - 1, car.position.z));
+                // --- Rotate car to face the player ---
+                car.rotation.y = Math.atan2(dx, dz);
+            }
+            // Keep car on ground
+            car.position.y = player.position.y;
+            // --- Check if car runs over player ---
+            const carHitbox = { x: car.position.x, y: car.position.y, z: car.position.z, w: 2.2, h: 1.2, d: 3.2 };
+            const px = player.position.x, py = player.position.y, pz = player.position.z;
+            if (
+                px > carHitbox.x - carHitbox.w/2 - playerSize/2 && px < carHitbox.x + carHitbox.w/2 + playerSize/2 &&
+                py > carHitbox.y - carHitbox.h/2 - playerSize/2 && py < carHitbox.y + carHitbox.h/2 + playerSize/2 &&
+                pz > carHitbox.z - carHitbox.d/2 - playerSize/2 && pz < carHitbox.z + carHitbox.d/2 + playerSize/2
+            ) {
+                gameWon = true;
+                document.getElementById('info').textContent = 'coolkid was run over by bluudud! Refresh to try again.';
+            }
+        }
+        // The sun no longer does anything on collision
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+    }
+    animate();
+    </script>
+</body>
+</html>

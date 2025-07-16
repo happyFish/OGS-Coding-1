@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Pong Webgame</title>
+    <style>
+        body {
+            background: #c0ecec;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        canvas {
+            background: #fcc1dc;
+            display: block;
+            margin: 40px auto;
+            border: 2px solid #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Pong Webgame</h1>
+    <canvas id="pong" width="600" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('pong');
+        const ctx = canvas.getContext('2d');
+
+        // Game objects
+        const paddleWidth = 10, paddleHeight = 80;
+        const ballSize = 10;
+        let leftPaddleY = canvas.height / 2 - paddleHeight / 2;
+        let rightPaddleY = canvas.height / 2 - paddleHeight / 2;
+        let leftPaddleSpeed = 0, rightPaddleSpeed = 0;
+        let ballX = canvas.width / 2 - ballSize / 2;
+        let ballY = canvas.height / 2 - ballSize / 2;
+        let ballSpeedX = 5, ballSpeedY = 2
+        let leftScore = 0, rightScore = 0; 2
+        // Draw everything
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw paddles
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(10, leftPaddleY, paddleWidth, paddleHeight);
+            ctx.fillRect(canvas.width - paddleWidth - 10, rightPaddleY, paddleWidth, paddleHeight);
+
+            // Draw ball
+            ctx.fillRect(ballX, ballY, ballSize, ballSize);
+
+            // Draw scores
+            ctx.font = '32px Arial';
+            ctx.fillText(leftScore, canvas.width / 4, 40);
+            ctx.fillText(rightScore, 3 * canvas.width / 4, 40);
+        }
+
+        // Update game state
+        function update() {
+            leftPaddleY += leftPaddleSpeed;
+            rightPaddleY += rightPaddleSpeed;
+
+            // Prevent paddles from going out of bounds
+            leftPaddleY = Math.max(0, Math.min(canvas.height - paddleHeight, leftPaddleY));
+            rightPaddleY = Math.max(0, Math.min(canvas.height - paddleHeight, rightPaddleY));
+
+            // Move ball
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+
+            // Ball collision with top/bottom
+            if (ballY <= 0 || ballY + ballSize >= canvas.height) {
+                ballSpeedY = -ballSpeedY;
+            }
+
+            // Ball collision with paddles
+            if (
+                ballX <= 20 + paddleWidth &&
+                ballY + ballSize > leftPaddleY &&
+                ballY < leftPaddleY + paddleHeight
+            ) {
+                ballSpeedX = -ballSpeedX;
+                ballX = 20 + paddleWidth; // Prevent sticking
+            }
+            if (
+                ballX + ballSize >= canvas.width - paddleWidth - 20 &&
+                ballY + ballSize > rightPaddleY &&
+                ballY < rightPaddleY + paddleHeight
+            ) {
+                ballSpeedX = -ballSpeedX;
+                ballX = canvas.width - paddleWidth - 20 - ballSize; // Prevent sticking
+            }
+
+            // Score
+            if (ballX < 0) {
+                rightScore++;
+                resetBall();
+            }
+            if (ballX + ballSize > canvas.width) {
+                leftScore++;
+                resetBall();
+            }
+        }
+
+        function resetBall() {
+            ballX = canvas.width / 2 - ballSize / 2;
+            ballY = canvas.height / 2 - ballSize / 2;
+            ballSpeedX = (Math.random() > 0.5 ? 4 : -4);
+            ballSpeedY = (Math.random() > 0.5 ? 2 : -2);
+        }
+
+        // Controls
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'w') leftPaddleSpeed = -5;
+            if (e.key === 's') leftPaddleSpeed = 5;
+            if (e.key === 'ArrowUp') rightPaddleSpeed = -5;
+            if (e.key === 'ArrowDown') rightPaddleSpeed = 5;
+        });
+        document.addEventListener('keyup', function (e) {
+            if (e.key === 'w' || e.key === 's') leftPaddleSpeed = 0;
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') rightPaddleSpeed = 0;
+        });
+
+        // Main loop
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+
+</html>

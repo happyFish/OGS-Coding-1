@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ragdoll Game</title>
+    <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; }
+        body { background: #222; }
+        #info { color: #fff; position: absolute; top: 10px; width: 100%; text-align: center; font-family: Arial, sans-serif; z-index: 10; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <div id="info">Ragdoll Game | WASD = Push | R = Reset</div>
+    <script src="https://unpkg.com/three@0.153.0/build/three.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
+    <script>
+    console.log('Script loaded');
+    // Scene and camera
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222233);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 15);
+    camera.lookAt(0, 2, 0); // Look at ragdoll's initial position
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    scene.add(new THREE.GridHelper(30, 30)); // Add grid for orientation
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
+    light.position.set(10, 20, 10);
+    scene.add(light);
+
+    // Cannon.js physics world
+    const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+
+    // Ground
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x4444aa }); // More visible color
+    const groundGeo = new THREE.BoxGeometry(30, 1, 30);
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.position.y = -0.5;
+    scene.add(groundMesh);
+    const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(15, 0.5, 15)) });
+    groundBody.position.set(0, -0.5, 0);
+    world.addBody(groundBody);
+
+    // Add a large visible box for reference
+    const refBox = new THREE.Mesh(new THREE.BoxGeometry(2,2,2), new THREE.MeshLambertMaterial({color:0xff0000}));
+    refBox.position.set(5,1,0);
+    scene.add(refBox);
+
+    // Ragdoll parts and joints
+    let ragdollMeshes = [], ragdollBodies = [], ragdollJoints = [];
+    function createRagdoll(x=0, y=8, z=0) { // Place ragdoll higher
+        // Clear previous
+        for (const mesh of ragdollMeshes) scene.remove(mesh);
+        for (const body of ragdollBodies) world.removeBody(body);
+        ragdollMeshes = [];
+        ragdollBodies = [];
+        ragdollJoints = [];
+        // Sizes
+        const headRadius = 0.4, torsoH = 1.2, limbL = 0.7, limbR = 0.18;
+        // Materials
+        const mat = new THREE.MeshLambertMaterial({ color: 0xffaa22 });
+        // Head
+        const headGeo = new THREE.SphereGeometry(headRadius, 16, 16);
+        const headMesh = new THREE.Mesh(headGeo, mat);
+        scene.add(headMesh);
+        ragdollMeshes.push(headMesh);
+        const headBody = new CANNON.Body({ mass: 1, shape: new CANNON.Sphere(headRadius), position: new CANNON.Vec3(x, y+torsoH/2+headRadius, z) });
+        world.addBody(headBody);
+        ragdollBodies.push(headBody);
+        // Torso (Box)
+        const torsoGeo = new THREE.BoxGeometry(headRadius*2, torsoH, headRadius*1.2);
+        const torsoMesh = new THREE.Mesh(torsoGeo, mat);
+        scene.add(torsoMesh);
+        ragdollMeshes.push(torsoMesh);
+        const torsoBody = new CANNON.Body({ mass: 3, shape: new CANNON.Box(new CANNON.Vec3(headRadius, torsoH/2, headRadius*0.6)), position: new CANNON.Vec3(x, y, z) });
+        world.addBody(torsoBody);
+        ragdollBodies.push(torsoBody);
+        // Arms (left/right, Box)
+        for (let side of [-1, 1]) {
+            const armGeo = new THREE.BoxGeometry(limbL, limbR*2, limbR*2);
+            const armMesh = new THREE.Mesh(armGeo, mat);
+            scene.add(armMesh);
+            ragdollMeshes.push(armMesh);
+            const armBody = new CANNON.Body({ mass: 0.5, shape: new CANNON.Box(new CANNON.Vec3(limbL/2, limbR, limbR)), position: new CANNON.Vec3(x+side*(headRadius+limbL/2), y+torsoH/2-0.2, z) });
+            world.addBody(armBody);
+            ragdollBodies.push(armBody);
+            // Joint to torso
+            const joint = new CANNON.LockConstraint(armBody, torsoBody);
+            world.addConstraint(joint);
+            ragdollJoints.push(joint);
+        }
+        // Legs (left/right, Box)
+        for (let side of [-1, 1]) {
+            const legGeo = new THREE.BoxGeometry(limbR*2, limbL, limbR*2);
+            const legMesh = new THREE.Mesh(legGeo, mat);
+            scene.add(legMesh);
+            ragdollMeshes.push(legMesh);
+            const legBody = new CANNON.Body({ mass: 0.7, shape: new CANNON.Box(new CANNON.Vec3(limbR, limbL/2, limbR)), position: new CANNON.Vec3(x+side*0.18, y-torsoH/2-limbL/2, z) });
+            world.addBody(legBody);
+            ragdollBodies.push(legBody);
+            // Joint to torso
+            const joint = new CANNON.LockConstraint(legBody, torsoBody);
+            world.addConstraint(joint);
+            ragdollJoints.push(joint);
+        }
+        // Head to torso joint
+        const neck = new CANNON.LockConstraint(headBody, torsoBody);
+        world.addConstraint(neck);
+        ragdollJoints.push(neck);
+    }
+    createRagdoll();
+
+    // Controls: WASD to push, R to reset
+    window.addEventListener('keydown', (e) => {
+        let force = 20;
+        if (e.code === 'KeyW') ragdollBodies[1].applyImpulse(new CANNON.Vec3(0, 0, -force), ragdollBodies[1].position);
+        if (e.code === 'KeyS') ragdollBodies[1].applyImpulse(new CANNON.Vec3(0, 0, force), ragdollBodies[1].position);
+        if (e.code === 'KeyA') ragdollBodies[1].applyImpulse(new CANNON.Vec3(-force, 0, 0), ragdollBodies[1].position);
+        if (e.code === 'KeyD') ragdollBodies[1].applyImpulse(new CANNON.Vec3(force, 0, 0), ragdollBodies[1].position);
+        if (e.code === 'KeyR') createRagdoll();
+    });
+
+    let lastError = '';
+    function showError(msg) {
+        let errDiv = document.getElementById('error');
+        if (!errDiv) {
+            errDiv = document.createElement('div');
+            errDiv.id = 'error';
+            errDiv.style.position = 'absolute';
+            errDiv.style.bottom = '10px';
+            errDiv.style.left = '10px';
+            errDiv.style.color = 'red';
+            errDiv.style.background = 'rgba(0,0,0,0.7)';
+            errDiv.style.padding = '8px';
+            errDiv.style.zIndex = 1000;
+            document.body.appendChild(errDiv);
+        }
+        errDiv.textContent = msg;
+    }
+
+    // Animation loop
+    function animate() {
+        try {
+            requestAnimationFrame(animate);
+            // Debug: show animation is running
+            console.log('Rendering frame');
+            world.fixedStep();
+            // Sync meshes to physics bodies
+            for (let i = 0; i < ragdollMeshes.length; i++) {
+                ragdollMeshes[i].position.copy(ragdollBodies[i].position);
+                ragdollMeshes[i].quaternion.copy(ragdollBodies[i].quaternion);
+            }
+            renderer.render(scene, camera);
+        } catch (e) {
+            if (lastError !== e.message) {
+                lastError = e.message;
+                showError('Error: ' + e.message);
+                console.error(e);
+            }
+        }
+    }
+    animate();
+    </script>
+</body>
+</html>

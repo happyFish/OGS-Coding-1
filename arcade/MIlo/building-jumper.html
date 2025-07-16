@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Building Jumper 3D</title>
+    <style>
+        html {
+            height: 100%;
+            width: 100%;
+            position: relative;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            position: relative;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-family: Arial;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="info">WASD to move, Space to jump. Jump across buildings! If you fall, you die.</div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222244);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 5);
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 10, 7.5);
+        scene.add(light);
+
+        // Buildings
+        const buildings = [];
+        const buildingGeometry = new THREE.BoxGeometry(2, 0.5, 2);
+        let xPos = 0;
+        for (let i = 0; i < 10; i++) {
+            const distance = 2.5 + Math.random() * 2.3;
+            xPos += distance;
+            const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0x4444aa + i * 1000 });
+            const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+            building.position.set(xPos, Math.random() * 1.0, 0);
+            scene.add(building);
+            buildings.push(building);
+        }
+
+        // Player
+        const playerGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xffd700 });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.set(0, 1, 0);
+        scene.add(player);
+
+        // Place player on the first building at start
+        player.position.set(buildings[0].position.x, buildings[0].position.y + 0.55, buildings[0].position.z);
+
+        // Controls
+        let velocity = new THREE.Vector3();
+        let canJump = false;
+        const jumpStrength = 0.22; // Increased jump height
+        const gravity = 0.012;     // Slightly stronger gravity
+        const keys = {};
+        document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        function checkBuildingCollision() {
+            for (const building of buildings) {
+                const px = player.position.x, py = player.position.y, pz = player.position.z;
+                const bx = building.position.x, by = building.position.y, bz = building.position.z;
+                if (
+                    Math.abs(px - bx) < 1.1 &&
+                    Math.abs(py - (by + 0.25)) < 0.35 &&
+                    Math.abs(pz - bz) < 1.1 &&
+                    velocity.y <= 0
+                ) {
+                    player.position.y = by + 0.55;
+                    velocity.y = 0;
+                    canJump = true;
+                    return;
+                }
+            }
+            canJump = false;
+        }
+
+        function resetPlayer() {
+            // player.position.set(0, 1, 0);
+            spawnOnBuilding(0);
+            velocity.set(0, 0, 0);
+            document.getElementById('info').innerText = "You fell! Press any key to restart.";
+        }
+
+        let level = 1;
+        const maxJumpDistance = 4;
+        const minJumpDistance = 3;
+
+        // Function to reset buildings and player for next level
+        function nextLevel() {
+            level++;
+            document.getElementById('info').innerText = `Level ${level}! Buildings reset.`;
+            // Remove old buildings
+            for (const b of buildings) scene.remove(b);
+            buildings.length = 0;
+            // Generate new buildings
+            let xPos = 0;
+            for (let i = 0; i < 10; i++) {
+                const distance = minJumpDistance + Math.random() * (maxJumpDistance - minJumpDistance);
+                xPos += distance;
+                const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0x4444aa + i * 1000 });
+                const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+                building.position.set(xPos, Math.random() * 1.5, 0);
+                scene.add(building);
+                buildings.push(building);
+            }
+            // Place player on first building
+            player.position.set(buildings[0].position.x, buildings[0].position.y + 0.55, buildings[0].position.z);
+            velocity.set(0, 0, 0);
+        }
+
+        function spawnOnBuilding(buildingIndex = 0) {
+            // Clamp index to valid range
+            buildingIndex = Math.max(0, Math.min(buildings.length - 1, buildingIndex));
+            player.position.set(
+                buildings[buildingIndex].position.x,
+                buildings[buildingIndex].position.y + 0.55,
+                buildings[buildingIndex].position.z
+            );
+            velocity.set(0, 0, 0);
+        }
+
+        // In resetPlayer(), after buildings are created:
+        spawnOnBuilding(0);
+
+        // Turrets and bullets
+        const turrets = [];
+        const bullets = [];
+        const turretGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.4, 16);
+        const turretMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+
+        // Function to add turrets to every two buildings (i.e., buildings 2, 4, 6, ...)
+        function addTurrets() {
+            // Remove old turrets
+            for (const t of turrets) scene.remove(t);
+            turrets.length = 0;
+            // Add new turrets
+            for (let i = 1; i < buildings.length; i += 4) {
+                const turret = new THREE.Mesh(turretGeometry, turretMaterial);
+                turret.position.set(
+                    buildings[i].position.x,
+                    buildings[i].position.y + 0.5,
+                    buildings[i].position.z
+                );
+                scene.add(turret);
+                turrets.push(turret);
+            }
+        }
+
+        // Function to shoot bullets from turrets
+        function shootBullets() {
+            for (const turret of turrets) {
+                const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+                const bulletMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+                bullet.position.copy(turret.position);
+                bullet.userData = {
+                    velocity: new THREE.Vector3(
+                        player.position.x - turret.position.x,
+                        player.position.y - turret.position.y,
+                        player.position.z - turret.position.z
+                    ).normalize().multiplyScalar(0.05)
+                };
+                scene.add(bullet);
+                bullets.push(bullet);
+            }
+        }
+
+        // Shoot bullets every 5 seconds
+        setInterval(shootBullets, 5000);
+
+        // Game loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Movement
+            let speed = 0.09;
+            if (keys['w']) player.position.z -= speed;
+            if (keys['s']) player.position.z += speed;
+            if (keys['a']) player.position.x -= speed;
+            if (keys['d']) player.position.x += speed;
+
+            // Gravity
+            velocity.y -= gravity;
+            player.position.y += velocity.y;
+
+            checkBuildingCollision();
+
+            // Jump
+            if (keys[' '] && canJump) {
+                velocity.y = jumpStrength;
+                canJump = false;
+            }
+
+            // Death condition
+            if (player.position.y < -5) {
+                resetPlayer();
+            }
+
+            // Win condition: reach last building
+            const lastBuilding = buildings[buildings.length - 1];
+            if (
+                Math.abs(player.position.x - lastBuilding.position.x) < 1.1 &&
+                Math.abs(player.position.y - (lastBuilding.position.y + 0.25)) < 0.35 &&
+                Math.abs(player.position.z - lastBuilding.position.z) < 1.1
+            ) {
+                nextLevel();
+            }
+
+            // Update bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                bullet.position.add(bullet.userData.velocity);
+
+                // Remove bullet if far away
+                if (bullet.position.distanceTo(player.position) > 30) {
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Collision with player
+                if (bullet.position.distanceTo(player.position) < 0.3) {
+                    resetPlayer();
+                    // Remove all bullets
+                    for (const b of bullets) scene.remove(b);
+                    bullets.length = 0;
+                    break;
+                }
+            }
+
+            // Camera follows player
+            camera.position.x = player.position.x;
+            camera.position.z = player.position.z + 5;
+            camera.position.y = player.position.y + 2;
+            camera.lookAt(player.position);
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // When game starts or resets, after buildings are created:
+        addTurrets("addturrets");
+    </script>
+</body>
+
+</html>
