@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Dodge the Falling Blocks</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #232946 0%, #393e6a 100%);
+            color: #fff;
+            text-align: center;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        #gameTitle {
+            font-size: 2.8em;
+            margin-top: 40px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 18px #007bff, 0 0 2px #fff;
+            animation: pulseTitle 2s infinite;
+        }
+
+        @keyframes pulseTitle {
+
+            0%,
+            100% {
+                text-shadow: 0 0 18px #007bff, 0 0 2px #fff;
+            }
+
+            50% {
+                text-shadow: 0 0 32px #eebbc3, 0 0 8px #fff;
+            }
+        }
+
+        #mainMenu {
+            margin-top: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .menuBox {
+            background: rgba(34, 34, 44, 0.95);
+            border-radius: 18px;
+            box-shadow: 0 8px 32px #23294688;
+            padding: 40px 32px 32px 32px;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .menuBtn {
+            padding: 16px 38px;
+            font-size: 1.3em;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #007bff 0%, #eebbc3 100%);
+            color: #232946;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 12px #007bff44;
+            transition: background 0.3s, transform 0.2s, color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menuBtn:hover {
+            background: linear-gradient(90deg, #eebbc3 0%, #007bff 100%);
+            color: #fff;
+            transform: scale(1.07);
+            box-shadow: 0 4px 24px #eebbc3aa;
+        }
+
+        .menuBtn:before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 300%;
+            height: 300%;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.5s ease;
+            z-index: 0;
+        }
+
+        .menuBtn:hover:before {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .menuBtn span {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Game UI Styles */
+        #gameUI {
+            display: none;
+        }
+
+        /* Shop Overlay Styles */
+        #shopOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            z-index: 10;
+        }
+
+        #shopOverlay div {
+            margin: 100px auto;
+            width: 350px;
+            background: #222;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        /* Stats Overlay Styles */
+        #statsOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            z-index: 10;
+        }
+
+        #statsOverlay div {
+            margin: 100px auto;
+            width: 350px;
+            background: #222;
+            border-radius: 10px;
+            padding: 30px;
+        }
+
+        .outfitBtn {
+            display: block;
+            width: 90%;
+            margin: 12px auto;
+            padding: 14px 0;
+            font-size: 1.15em;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #eebbc3 0%, #007bff 100%);
+            color: #232946;
+            box-shadow: 0 2px 12px #007bff44;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s, color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .outfitBtn:hover {
+            background: linear-gradient(90deg, #007bff 0%, #eebbc3 100%);
+            color: #fff;
+            transform: scale(1.07);
+            box-shadow: 0 4px 24px #eebbc3aa;
+        }
+
+        #restartBtn,
+        #replayBtn,
+        #menuBtn {
+            margin: 18px 10px 0 10px;
+            padding: 14px 38px;
+            font-size: 1.15em;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #43cea2 0%, #185a9d 100%);
+            color: #fff;
+            box-shadow: 0 2px 12px #185a9d44;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+            display: inline-block;
+        }
+
+        #restartBtn:hover,
+        #replayBtn:hover,
+        #menuBtn:hover {
+            background: linear-gradient(90deg, #185a9d 0%, #43cea2 100%);
+            transform: scale(1.07);
+            box-shadow: 0 4px 24px #43cea2aa;
+        }
+    </style>
+</head>
+
+<body>
+    <h1 id="gameTitle">Dodge the Falling Blocks</h1>
+    <!-- Main Menu -->
+    <div id="mainMenu">
+        <div class="menuBox">
+            <button id="startBtn" class="menuBtn">▶ Start Game</button>
+            <button id="shopBtn" class="menuBtn">🛒 Shop</button>
+            <button id="statsBtn" class="menuBtn">📊 My Statistics</button>
+            <button id="normalModeBtn" class="menuBtn">🎮 Normal Mode</button>
+            <button id="battleModeBtn" class="menuBtn">⚔️ Battle Mode</button>
+        </div>
+    </div>
+    <!-- Game UI -->
+    <div id="gameUI" style="display:none;">
+        <div id="score" style="margin-bottom:10px;">Score: 0</div>
+        <div id="highScore" style="margin-bottom:10px;">Best: 0</div>
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+        <button id="restartBtn" style="display:none;">Restart</button>
+        <button id="replayBtn" style="display:none;">Replay</button>
+        <button id="menuBtn" style="display:none;">Menu</button>
+        <div id="moneyDisplay">Money: 0</div>
+        <div id="questDisplay">Quest: Score 200+ for 100 coins</div>
+        <div id="shopDisplay">Shop: Press 2 (50 coins) or 3 (100 coins) for new outfits</div>
+    </div>
+    <!-- Shop Overlay -->
+    <div id="shopOverlay"
+        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); color:#fff; z-index:10;">
+        <div
+            style="margin:100px auto; width:350px; background:#222; border-radius:10px; padding:30px; text-align:center;">
+            <h2>Shop</h2>
+            <button class="outfitBtn" data-outfit="0">Default (Free)</button>
+            <button class="outfitBtn" data-outfit="1">Red/Gold (50 coins)</button>
+            <button class="outfitBtn" data-outfit="2">Yellow/Pink (100 coins)</button>
+            <button id="buyLifeBtn" class="outfitBtn">Buy Extra Life (150 coins)</button>
+            <div id="shopMsg" style="margin-top:15px; min-height:24px;"></div>
+            <button onclick="document.getElementById('shopOverlay').style.display='none'"
+                style="margin-top:20px;">Close</button>
+        </div>
+    </div>
+    <!-- Stats Overlay -->
+    <div id="statsOverlay"
+        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); color:#fff; z-index:10;">
+        <div style="margin:100px auto; width:350px; background:#222; border-radius:10px; padding:30px;">
+            <h2>My Statistics</h2>
+            <div id="statsContent"></div>
+            <button onclick="document.getElementById('statsOverlay').style.display='none'">Close</button>
+        </div>
+    </div>
+    <audio id="coinSound" src="../audio/coin.mp3"></audio>
+    <audio id="gameOverSound" src="../audio/game-over.mp3"></audio>
+    <audio id="backgroundMusic" src="../audio/8bit-music.mp3" loop></audio>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const highScoreDisplay = document.getElementById('highScore');
+        const restartBtn = document.getElementById('restartBtn');
+        const replayBtn = document.getElementById('replayBtn');
+        const menuBtn = document.getElementById('menuBtn');
+        const mainMenu = document.getElementById('mainMenu');
+        const gameUI = document.getElementById('gameUI');
+        const startBtn = document.getElementById('startBtn');
+        const shopBtn = document.getElementById('shopBtn');
+        const statsBtn = document.getElementById('statsBtn');
+        const shopOverlay = document.getElementById('shopOverlay');
+        const statsOverlay = document.getElementById('statsOverlay');
+        const statsContent = document.getElementById('statsContent');
+
+        const player = {
+            x: 180,
+            y: 450,
+            width: 40,
+            height: 40,
+            color1: '#00ff99',
+            color2: '#0066ff',
+            speed: 6,
+            dx: 0,
+            invincible: false,
+            invincibleTimer: 0,
+            outfit: 0
+        };
+
+        let blocks = [];
+        let boosters = [];
+        let coins = [];
+        let score = 0;
+        let highScore = Number(localStorage.getItem('dodgeHighScore')) || 0;
+        let money = Number(localStorage.getItem('dodgeMoney')) || 0;
+        let level = 1;
+        let gameOver = false;
+        let blockInterval;
+        let boosterInterval;
+        let coinInterval;
+        let animationId;
+        let bgGradientOffset = 0;
+        let questCompleted = false;
+        let lives = 1; // Add this near your other game variables
+
+        const outfits = [
+            { color1: '#00ff99', color2: '#0066ff' },
+            { color1: '#ff4444', color2: '#ffbb00' },
+            { color1: '#fff700', color2: '#ff00cc' },
+        ];
+
+        // THEMES: Add this array at the top of your script
+        const themes = [
+            {
+                bg: ['#232946', '#393e6a'],
+                blockStart: '#ff5252',
+                blockEnd: '#ffb347'
+            },
+            {
+                bg: ['#1a2980', '#26d0ce'],
+                blockStart: '#26d0ce',
+                blockEnd: '#1a2980'
+            },
+            {
+                bg: ['#f7971e', '#ffd200'],
+                blockStart: '#ffd200',
+                blockEnd: '#f7971e'
+            },
+            {
+                bg: ['#654ea3', '#eaafc8'],
+                blockStart: '#eaafc8',
+                blockEnd: '#654ea3'
+            },
+            {
+                bg: ['#43cea2', '#185a9d'],
+                blockStart: '#43cea2',
+                blockEnd: '#185a9d'
+            }
+        ];
+
+        // Track current theme index
+        let themeIndex = 0;
+
+        highScoreDisplay.textContent = 'Best: ' + highScore;
+
+        // Update drawBackground to use current theme
+        function drawBackground() {
+            bgGradientOffset += 0.5;
+            const theme = themes[themeIndex % themes.length];
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, theme.bg[0]);
+            gradient.addColorStop(1, theme.bg[1]);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawPlayer() {
+            ctx.save();
+            if (player.invincible) {
+                ctx.shadowColor = "#ffff00";
+                ctx.shadowBlur = 30;
+            } else {
+                ctx.shadowColor = "#00ffcc";
+                ctx.shadowBlur = 20;
+            }
+            const outfit = outfits[player.outfit];
+            const grad = ctx.createLinearGradient(player.x, player.y, player.x + player.width, player.y + player.height);
+            grad.addColorStop(0, outfit.color1);
+            grad.addColorStop(1, outfit.color2);
+            ctx.fillStyle = grad;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.restore();
+            ctx.strokeStyle = player.invincible ? "#ffff00" : "#fff";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(player.x, player.y, player.width, player.height);
+        }
+
+        // Update drawBlocks to use current theme
+        function drawBlocks() {
+            const theme = themes[themeIndex % themes.length];
+            blocks.forEach(block => {
+                ctx.save();
+                ctx.shadowColor = theme.blockStart;
+                ctx.shadowBlur = 16;
+                const grad = ctx.createLinearGradient(block.x, block.y, block.x + block.width, block.y + block.height);
+                grad.addColorStop(0, theme.blockStart);
+                grad.addColorStop(1, theme.blockEnd);
+                ctx.fillStyle = grad;
+                ctx.fillRect(block.x, block.y, block.width, block.height);
+                ctx.restore();
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(block.x, block.y, block.width, block.height);
+            });
+        }
+
+        function drawBoosters() {
+            boosters.forEach(booster => {
+                ctx.save();
+                ctx.shadowColor = "#00ffff";
+                ctx.shadowBlur = 18;
+                const grad = ctx.createRadialGradient(
+                    booster.x + booster.size / 2, booster.y + booster.size / 2, booster.size / 6,
+                    booster.x + booster.size / 2, booster.y + booster.size / 2, booster.size / 2
+                );
+                grad.addColorStop(0, "#ffff00");
+                grad.addColorStop(1, "#00ffff");
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(booster.x + booster.size / 2, booster.y + booster.size / 2, booster.size / 2, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.restore();
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(booster.x, booster.y, booster.size, booster.size);
+            });
+        }
+
+        function drawCoins() {
+            coins.forEach(coin => {
+                ctx.save();
+                ctx.shadowColor = "#ffd700";
+                ctx.shadowBlur = 12;
+                ctx.fillStyle = "#ffd700";
+                ctx.beginPath();
+                ctx.arc(coin.x + coin.size / 2, coin.y + coin.size / 2, coin.size / 2, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.restore();
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(coin.x, coin.y, coin.size, coin.size);
+            });
+        }
+
+        function movePlayer() {
+            player.x += player.dx;
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+        }
+
+        function moveBlocks() {
+            blocks.forEach(block => {
+                block.y += block.speed;
+            });
+            // Count blocks that leave the screen as dodged
+            const initialLength = blocks.length;
+            blocks = blocks.filter(block => block.y < canvas.height);
+            const dodged = initialLength - blocks.length;
+            if (dodged > 0) {
+                score += dodged;
+                updateScore();
+            }
+        }
+
+        function moveBoosters() {
+            boosters.forEach(booster => {
+                booster.y += booster.speed;
+            });
+            boosters = boosters.filter(booster => booster.y < canvas.height);
+        }
+
+        function moveCoins() {
+            coins.forEach(coin => {
+                coin.y += coin.speed;
+            });
+            coins = coins.filter(coin => coin.y < canvas.height);
+        }
+
+        function detectCollision() {
+            if (player.invincible) return false;
+            for (let block of blocks) {
+                if (
+                    player.x < block.x + block.width &&
+                    player.x + player.width > block.x &&
+                    player.y < block.y + block.height &&
+                    player.y + player.height > block.y
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function detectBoosterCollision() {
+            for (let i = 0; i < boosters.length; i++) {
+                const booster = boosters[i];
+                if (
+                    player.x < booster.x + booster.size &&
+                    player.x + player.width > booster.x &&
+                    player.y < booster.y + booster.size &&
+                    player.y + player.height > booster.y
+                ) {
+                    boosters.splice(i, 1);
+                    activateInvincibility();
+                    break;
+                }
+            }
+        }
+
+        const coinSound = document.getElementById('coinSound');
+        const gameOverSound = document.getElementById('gameOverSound');
+        const backgroundMusic = document.getElementById('backgroundMusic');
+
+        // Play sound when collecting a coin
+        function detectCoinCollision() {
+            for (let i = coins.length - 1; i >= 0; i--) {
+                const coin = coins[i];
+                if (
+                    player.x < coin.x + coin.size &&
+                    player.x + player.width > coin.x &&
+                    player.y < coin.y + coin.size &&
+                    player.y + player.height > coin.y
+                ) {
+                    coins.splice(i, 1); // Remove coin
+                    money += 5; // Add money
+                    localStorage.setItem('dodgeMoney', money); // Save money
+                    coinSound.currentTime = 0;
+                    coinSound.play();
+                }
+            }
+        }
+
+        // Play sound on game over
+        function endGame() {
+            if (lives > 1) {
+                lives--;
+                document.getElementById('shopMsg').textContent = `You used an extra life! Lives left: ${lives}`;
+                // Reset player position and invincibility, then continue game
+                player.x = 180;
+                player.invincible = true;
+                player.invincibleTimer = 120;
+                gameOver = false;
+                replayBtn.style.display = 'none';
+                menuBtn.style.display = 'none';
+                animationId = requestAnimationFrame(gameLoop);
+                return;
+            }
+            gameOver = true;
+            clearInterval(blockInterval);
+            clearInterval(boosterInterval);
+            clearInterval(coinInterval);
+            cancelAnimationFrame(animationId);
+            restartBtn.style.display = 'none';
+            replayBtn.style.display = 'inline-block';
+            menuBtn.style.display = 'inline-block';
+            gameOverSound.currentTime = 0;
+            backgroundMusic.pause();
+            gameOverSound.play();
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#fff';
+            ctx.font = '2em Arial';
+            ctx.fillText('Game Over!', 120, 250);
+            ctx.font = '1.2em Arial';
+            ctx.fillText('Final Score: ' + score, 135, 290);
+            ctx.fillText('Best: ' + highScore, 150, 320);
+            ctx.fillText('Level: ' + level, 160, 350);
+            ctx.fillText('Money: ' + money, 160, 380);
+            ctx.restore();
+        }
+
+        function endBattleGame() {
+            clearInterval(blockInterval);
+            clearInterval(boosterInterval);
+            clearInterval(coinInterval);
+            cancelAnimationFrame(animationId);
+            restartBtn.style.display = 'none';
+            replayBtn.style.display = 'inline-block';
+            menuBtn.style.display = 'inline-block';
+            backgroundMusic.pause();
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#fff';
+            ctx.font = '2em Arial';
+            let result;
+            if (score >= 500 && (lives >= bot.lives || bot.score < 500)) {
+                result = 'You Win!';
+            } else if (bot.score >= 500 && (bot.lives >= lives || score < 500)) {
+                result = 'Bot Wins!';
+            } else if (lives <= 0 && bot.lives > 0) {
+                result = 'Bot Wins!';
+            } else if (bot.lives <= 0 && lives > 0) {
+                result = 'You Win!';
+            } else {
+                result = 'Draw!';
+            }
+            ctx.fillText(result, 120, 220);
+            ctx.font = '1.2em Arial';
+            ctx.fillText(`Your Score: ${score} | Lives: ${lives}`, 80, 270);
+            ctx.fillText(`Bot Score: ${bot.score} | Lives: ${bot.lives}`, 80, 310);
+            ctx.restore();
+        }
+
+        function addBlock() {
+            const blockWidth = 40;
+            const blockHeight = 40;
+            const x = Math.floor(Math.random() * (canvas.width - blockWidth));
+            // Make blocks slower and scale less with score/level
+            const speed = 3.5 + Math.random() * 1.5 + score * (0.025 + level * 0.01);
+            blocks.push({ x, y: -blockHeight, width: blockWidth, height: blockHeight, speed });
+        }
+
+        function addBooster() {
+            const size = 32;
+            const x = Math.floor(Math.random() * (canvas.width - size));
+            const speed = 3 + Math.random() * 2 + level * 0.5;
+            boosters.push({ x, y: -size, size, speed });
+        }
+
+        function addCoin() {
+            const size = 24;
+            const x = Math.floor(Math.random() * (canvas.width - size));
+            const speed = 4 + Math.random() * 2 + level * 0.4;
+            coins.push({ x, y: -size, size, speed });
+        }
+
+        function activateInvincibility() {
+            player.invincible = true;
+            player.invincibleTimer = 480; // 8 seconds instead of 6
+        }
+
+        function startGame() {
+            blocks = [];
+            boosters = [];
+            coins = [];
+            score = 0;
+            level = 1;
+            questCompleted = false;
+            gameOver = false;
+            player.x = 180;
+            player.invincible = false;
+            scoreDisplay.textContent = 'Score: 0';
+            restartBtn.style.display = 'none';
+            replayBtn.style.display = 'none';
+            menuBtn.style.display = 'none';
+            addBlock();
+            blockInterval = setInterval(() => {
+                addBlock();
+                updateScore();
+            }, Math.max(500 - level * 20, 220)); // blocks spawn slower
+            boosterInterval = setInterval(() => {
+                if (Math.random() < 0.32) addBooster(); // boosters spawn more often
+            }, Math.max(3500 - level * 100, 1500)); // boosters interval longer
+            coinInterval = setInterval(() => {
+                if (Math.random() < 0.55) addCoin(); // coins spawn more often
+            }, 900); // coins interval a bit longer
+            gameLoop();
+            backgroundMusic.play();
+        }
+
+        function startBattleGame() {
+            blocks = [];
+            boosters = [];
+            coins = [];
+            score = 0;
+            level = 1;
+            questCompleted = false;
+            gameOver = false;
+            player.x = 180;
+            player.invincible = false;
+            lives = 5;
+            bot.score = 0;
+            bot.lives = 5;
+            scoreDisplay.textContent = 'Score: 0';
+            restartBtn.style.display = 'none';
+            replayBtn.style.display = 'none';
+            menuBtn.style.display = 'none';
+            addBlock();
+            blockInterval = setInterval(() => {
+                addBlock();
+                updateScoreBattle();
+            }, Math.max(500 - level * 20, 220));
+            boosterInterval = setInterval(() => {
+                if (Math.random() < 0.32) addBooster();
+            }, Math.max(3500 - level * 100, 1500));
+            coinInterval = setInterval(() => {
+                if (Math.random() < 0.55) addCoin();
+            }, 900);
+            gameLoopBattle();
+            backgroundMusic.play();
+        }
+
+        function gameLoop() {
+            drawBackground();
+            drawPlayer();
+            drawBlocks();
+            drawBoosters();
+            drawCoins();
+            movePlayer();
+            moveBlocks();
+            moveBoosters();
+            moveCoins();
+            detectBoosterCollision();
+            detectCoinCollision();
+            handleInvincibility();
+            if (detectCollision()) {
+                endGame();
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = '2em Arial';
+                ctx.fillText('Game Over!', 120, 250);
+                ctx.font = '1.2em Arial';
+                ctx.fillText('Final Score: ' + score, 135, 290);
+                ctx.fillText('Best: ' + highScore, 150, 320);
+                ctx.fillText('Level: ' + level, 160, 350);
+                ctx.fillText('Money: ' + money, 160, 380);
+                ctx.restore();
+                return;
+            }
+            if (score > highScore) {
+                highScore = score;
+                highScoreDisplay.textContent = 'Best: ' + highScore;
+                localStorage.setItem('dodgeHighScore', highScore);
+            }
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // Level up every 200 score and change theme
+        function updateScore() {
+            score++;
+            scoreDisplay.textContent = 'Score: ' + score;
+            if (score > highScore) {
+                highScore = score;
+                highScoreDisplay.textContent = 'Best: ' + highScore;
+                localStorage.setItem('dodgeHighScore', highScore);
+            }
+            // Level up every 200 points
+            if (score % 200 === 0) {
+                level++;
+                themeIndex = (themeIndex + 1) % themes.length;
+            }
+            // Quest system: give 100 coins for every 200 points scored
+            if (score >= 200 && !questCompleted) {
+                money += 100;
+                questCompleted = true;
+                setTimeout(() => {
+                    questCompleted = false;
+                }, 10000); // 10 seconds cooldown for quest
+            }
+        }
+
+        function updateScoreBattle() {
+            score++;
+            scoreDisplay.textContent = `You: ${score} (${lives} lives) | Bot: ${bot.score} (${bot.lives} lives)`;
+        }
+
+        function handleInvincibility() {
+            if (player.invincible) {
+                player.invincibleTimer--;
+                if (player.invincibleTimer <= 0) {
+                    player.invincible = false;
+                }
+            }
+        }
+
+        // Replay button restarts the game
+        replayBtn.onclick = () => {
+            startGame();
+        };
+
+        // Menu button returns to main menu
+        menuBtn.onclick = () => {
+            gameUI.style.display = 'none';
+            mainMenu.style.display = 'block';
+            replayBtn.style.display = 'none';
+        };
+
+        // Shop and stats overlays
+        shopBtn.onclick = () => {
+            shopOverlay.style.display = 'block';
+        };
+        statsBtn.onclick = () => {
+            statsOverlay.style.display = 'block';
+            statsContent.innerHTML = `
+        <p>Best Score: ${highScore}</p>
+        <p>Money: ${money}</p>
+        <p>Current Outfit: ${player.outfit + 1}</p>
+        <p>Lives: ${lives}</p>
+    `;
+        };
+
+        // Start Game button
+        startBtn.onclick = () => {
+            mainMenu.style.display = 'none';
+            gameUI.style.display = 'block';
+            startGame();
+        };
+
+        // Outfit selection
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') player.dx = -player.speed;
+            if (e.key === 'ArrowRight') player.dx = player.speed;
+            if (e.key === '1') player.outfit = 0;
+            if (e.key === '2' && money >= 50) player.outfit = 1;
+            if (e.key === '3' && money >= 100) player.outfit = 2;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.dx = 0;
+        });
+
+        // Update money display
+        setInterval(() => {
+            document.getElementById('moneyDisplay').textContent = 'Money: ' + money;
+        }, 500);
+
+        // Hide overlays on close
+        document.querySelector('#shopOverlay button').onclick = () => {
+            shopOverlay.style.display = 'none';
+        };
+        document.querySelector('#statsOverlay button').onclick = () => {
+            statsOverlay.style.display = 'none';
+        };
+
+        // Outfit button functionality
+        document.querySelectorAll('.outfitBtn').forEach(button => {
+            button.addEventListener('click', () => {
+                const outfitId = button.getAttribute('data-outfit');
+                if (outfitId == 0) {
+                    player.outfit = 0;
+                    document.getElementById('shopMsg').textContent = 'Equipped Default Outfit';
+                } else if (outfitId == 1 && money >= 50) {
+                    player.outfit = 1;
+                    money -= 50;
+                    document.getElementById('shopMsg').textContent = 'Equipped Red/Gold Outfit';
+                } else if (outfitId == 2 && money >= 100) {
+                    player.outfit = 2;
+                    money -= 100;
+                    document.getElementById('shopMsg').textContent = 'Equipped Yellow/Pink Outfit';
+                } else {
+                    document.getElementById('shopMsg').textContent = 'Not enough coins!';
+                }
+                // Update local storage
+                localStorage.setItem('dodgeMoney', money);
+                // Update outfit in stats overlay if open
+                if (statsOverlay.style.display === 'block') {
+                    statsContent.innerHTML = `
+            <p>Best Score: ${highScore}</p>
+            <p>Money: ${money}</p>
+            <p>Current Outfit: ${player.outfit + 1}</p>
+        `;
+                }
+            });
+        });
+
+        // Shop logic
+        document.querySelectorAll('.outfitBtn').forEach(btn => {
+            btn.onclick = function () {
+                const outfitId = Number(btn.getAttribute('data-outfit'));
+                let msg = '';
+                if (outfitId === 0) {
+                    player.outfit = 0;
+                    msg = 'Default equipped!';
+                } else if (outfitId === 1) {
+                    if (money >= 50) {
+                        player.outfit = 1;
+                        msg = 'Red/Gold equipped!';
+                    } else {
+                        msg = 'Not enough coins for Red/Gold!';
+                    }
+                } else if (outfitId === 2) {
+                    if (money >= 100) {
+                        player.outfit = 2;
+                        msg = 'Yellow/Pink equipped!';
+                    } else {
+                        msg = 'Not enough coins for Yellow/Pink!';
+                    }
+                }
+                document.getElementById('shopMsg').textContent = msg;
+            };
+        });
+
+        // Extra life button logic
+        document.getElementById('buyLifeBtn').onclick = () => {
+            if (money >= 150) {
+                lives++;
+                money -= 150;
+                localStorage.setItem('dodgeMoney', money);
+                document.getElementById('shopMsg').textContent = `You bought an extra life! Lives: ${lives}`;
+            } else {
+                document.getElementById('shopMsg').textContent = 'Not enough coins for an extra life!';
+            }
+            // Update stats overlay if open
+            if (statsOverlay.style.display === 'block') {
+                statsContent.innerHTML = `
+            <p>Best Score: ${highScore}</p>
+            <p>Money: ${money}</p>
+            <p>Current Outfit: ${player.outfit + 1}</p>
+            <p>Lives: ${lives}</p>
+        `;
+            }
+        };
+
+        // Normal and Battle mode buttons
+        const normalModeBtn = document.getElementById('normalModeBtn');
+        const battleModeBtn = document.getElementById('battleModeBtn');
+
+        normalModeBtn.onclick = () => {
+            gameMode = 'normal';
+            mainMenu.style.display = 'none';
+            gameUI.style.display = 'block';
+            startGame();
+        };
+
+        battleModeBtn.onclick = () => {
+            gameMode = 'battle';
+            mainMenu.style.display = 'none';
+            gameUI.style.display = 'block';
+            startBattleGame();
+        };
+        let gameMode = 'normal'; // 'normal' or 'battle'
+        let bot = {
+            score: 0,
+            lives: 5
+        };
+
+        function gameLoopBattle() {
+            drawBackground();
+            drawPlayer();
+            drawBlocks();
+            drawBoosters();
+            drawCoins();
+            movePlayer();
+            moveBlocks();
+            moveBoosters();
+            moveCoins();
+            detectBoosterCollision();
+            detectCoinCollision();
+            handleInvincibility();
+
+            // Simple bot logic: bot dodges blocks automatically, loses a life randomly
+            if (Math.random() < 0.01 && bot.lives > 0) {
+                bot.lives--;
+            }
+            bot.score += 1;
+
+            // End conditions
+            if (score >= 500 || bot.score >= 500 || lives <= 0 || bot.lives <= 0) {
+                endBattleGame();
+                return;
+            }
+
+            if (detectCollision()) {
+                endGame();
+                return;
+            }
+            animationId = requestAnimationFrame(gameLoopBattle);
+        }
+    </script>
+</body>
+
+</html>
