@@ -74,6 +74,7 @@
             }
             // Ensure at least one open cell in center
             maze[Math.floor(CHUNK_SIZE / 2)][Math.floor(CHUNK_SIZE / 2)] = 0;
+            smoothChunk(maze); // <--- Add this line
             return maze;
         }
 
@@ -102,6 +103,9 @@
             const cy = Math.floor(wy / CHUNK_SIZE);
             const lx = ((wx % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
             const ly = ((wy % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+            // Make sure lx and ly are integers.
+            lx = Math.ceil(lx);
+            ly = Math.ceil(ly);
             getChunk(cx, cy)[ly][lx] = val;
         }
 
@@ -429,8 +433,11 @@
                 ry += sy * 0.05;
                 dist += 0.05;
                 if (getMapCell(rx, ry) === 2) {
-                    // Remove demon and spawn glitter burst
-                    setMapCell(rx, ry, 0);
+                    setMapCell(rx, ry, 3); // Demon now has 1 HP left
+                    spawnGlitter(Math.floor(rx), Math.floor(ry));
+                    break;
+                } else if (getMapCell(rx, ry) === 3) {
+                    setMapCell(rx, ry, 0); // Demon dies
                     spawnGlitter(Math.floor(rx), Math.floor(ry));
                     break;
                 }
@@ -599,6 +606,33 @@
             for (let y = 0; y < CHUNK_SIZE; y++) {
                 for (let x = 0; x < CHUNK_SIZE; x++) {
                     chunk[y][x] = newChunk[y][x];
+                }
+            }
+        }
+
+        function smoothChunk(chunk) {
+            for (let y = 1; y < CHUNK_SIZE - 1; y++) {
+                for (let x = 1; x < CHUNK_SIZE - 1; x++) {
+                    // Fill isolated empty cells surrounded by walls
+                    if (
+                        chunk[y][x] === 0 &&
+                        chunk[y-1][x] === 1 &&
+                        chunk[y+1][x] === 1 &&
+                        chunk[y][x-1] === 1 &&
+                        chunk[y][x+1] === 1
+                    ) {
+                        chunk[y][x] = 1;
+                    }
+                    // Remove isolated wall cells surrounded by empty
+                    if (
+                        chunk[y][x] === 1 &&
+                        chunk[y-1][x] === 0 &&
+                        chunk[y+1][x] === 0 &&
+                        chunk[y][x-1] === 0 &&
+                        chunk[y][x+1] === 0
+                    ) {
+                        chunk[y][x] = 0;
+                    }
                 }
             }
         }
