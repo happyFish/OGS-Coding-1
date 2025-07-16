@@ -465,7 +465,11 @@
           }
 
           // Check collision with player
-          if (zombie.position.distanceTo(camera.position) < 2.2) {
+          // Get zombie's world position
+          const zombieWorldPos = new THREE.Vector3();
+          zombie.getWorldPosition(zombieWorldPos);
+
+          if (zombieWorldPos.distanceTo(camera.position) < 2.2) {
             if (playerHealth > 0) {
               playerHealth -= 0.3;
               document.getElementById('health').innerText = 'Health: ' + Math.max(0, Math.floor(playerHealth));
