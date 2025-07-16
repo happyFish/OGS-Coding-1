@@ -43,6 +43,8 @@
         let level = 1;
         let boss = null;
         let bossLasers = [];
+        let unicornLasers = 0;
+        let unicornShots = []; // Array for unicorn's lasers
 
         // Generate random people
         function spawnPeople(n) {
@@ -120,6 +122,16 @@
                 if (l.life <= 0) lasers.splice(i, 1);
             }
 
+            // Animate glitter (move and fade out)
+            for (let i = glitter.length - 1; i >= 0; i--) {
+                let g = glitter[i];
+                g.x += g.dx;
+                g.y += g.dy;
+                g.life--;
+                g.size *= 0.97; // shrink a bit
+                if (g.life <= 0 || g.size < 0.5) glitter.splice(i, 1);
+            }
+
             // Turn people into red glitter
             if (keys[' ']) {
                 for (let i = people.length - 1; i >= 0; i--) {
@@ -129,14 +141,19 @@
                     if (Math.abs(dx) < 50 && Math.abs(dy) < 50) {
                         people.splice(i, 1);
                         score++;
-                        for (let g = 0; g < 30; g++) {
+                        unicornLasers++; // Gain a unicorn laser!
+                        // EXPLOSION: More glitter, more speed
+                        for (let g = 0; g < 60; g++) {
+                            let angle = Math.random() * Math.PI * 2;
+                            let speed = Math.random() * 6 + 2;
                             glitter.push({
-                                x: p.x, y: p.y,
-                                dx: Math.random() * 6 - 3,
-                                dy: Math.random() * 6 - 3,
+                                x: p.x,
+                                y: p.y,
+                                dx: Math.cos(angle) * speed,
+                                dy: Math.sin(angle) * speed,
                                 size: Math.random() * 6 + 2,
-                                color: `hsl(0,90%,60%)`, // red glitter
-                                life: 40
+                                color: `hsl(${Math.random() * 10},90%,60%)`, // various reds
+                                life: 40 + Math.random() * 20
                             });
                         }
                     }
@@ -144,12 +161,55 @@
                 keys[' '] = false;
             }
 
-            // Move glitter (but don't remove)
-            glitter.forEach(g => {
-                g.x += g.dx;
-                g.y += g.dy;
-                if (g.life > 0) g.life--;
-            });
+            // Shoot unicorn laser with 'z'
+            if (keys['z'] || keys['Z']) {
+                if (unicornLasers > 0) {
+                    unicornShots.push({
+                        x: unicorn.x,
+                        y: unicorn.y - unicorn.size,
+                        dy: -8,
+                        life: 100
+                    });
+                    unicornLasers--;
+                }
+                keys['z'] = false;
+                keys['Z'] = false;
+            }
+
+            // Move unicorn lasers
+            for (let i = unicornShots.length - 1; i >= 0; i--) {
+                let shot = unicornShots[i];
+                shot.y += shot.dy;
+                shot.life--;
+                // Hit people
+                for (let j = people.length - 1; j >= 0; j--) {
+                    let p = people[j];
+                    let dx = shot.x - p.x;
+                    let dy = shot.y - p.y;
+                    if (Math.sqrt(dx * dx + dy * dy) < p.size) {
+                        people.splice(j, 1);
+                        score++;
+                        unicornLasers++; // Gain another laser for hitting!
+                        // EXPLOSION: More glitter, more speed
+                        for (let g = 0; g < 60; g++) {
+                            let angle = Math.random() * Math.PI * 2;
+                            let speed = Math.random() * 6 + 2;
+                            glitter.push({
+                                x: p.x,
+                                y: p.y,
+                                dx: Math.cos(angle) * speed,
+                                dy: Math.sin(angle) * speed,
+                                size: Math.random() * 6 + 2,
+                                color: `hsl(${Math.random() * 10},90%,60%)`,
+                                life: 40 + Math.random() * 20
+                            });
+                        }
+                        unicornShots.splice(i, 1);
+                        break;
+                    }
+                }
+                if (shot.life <= 0) unicornShots.splice(i, 1);
+            }
 
             // Draw everything
             ctx.clearRect(0, 0, 800, 600);
@@ -192,6 +252,16 @@
                 ctx.stroke();
             });
 
+            // Draw unicorn lasers
+            unicornShots.forEach(shot => {
+                ctx.beginPath();
+                ctx.moveTo(shot.x, shot.y);
+                ctx.lineTo(shot.x, shot.y - 20);
+                ctx.strokeStyle = '#00f6ff';
+                ctx.lineWidth = 6;
+                ctx.stroke();
+            });
+
             // Draw glitter
             glitter.forEach(g => {
                 ctx.beginPath();
@@ -206,6 +276,22 @@
             ctx.font = '24px sans-serif';
             ctx.fillStyle = '#333';
             ctx.fillText('Score: ' + score, 10, 30);
+
+            // Draw unicorn laser count
+            ctx.font = '20px sans-serif';
+            ctx.fillStyle = '#00f6ff';
+            ctx.fillText('Unicorn Lasers: ' + unicornLasers, 10, 55);
+
+            // Draw level
+            ctx.font = '20px sans-serif';
+            ctx.fillStyle = '#a020f0';
+            ctx.fillText('Level: ' + level, 10, 80);
+
+            // Level up when all people are gone
+            if (people.length === 0) {
+                level++;
+                spawnPeople(8 + level * 2); // Increase number of people each level
+            }
 
             requestAnimationFrame(loop);
         }
