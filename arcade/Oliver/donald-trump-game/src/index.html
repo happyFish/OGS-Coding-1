@@ -53,6 +53,14 @@
 
         let npcLastHit = new Map();
         let heals = [];
+        let rainbowOrbs = [];
+        let rainbowOrbActive = false;
+        let rainbowMode = false;
+        let rainbowStartTime = 0;
+        let rainbowDuration = 15000; // 15 seconds
+        let lastRainbowOrbSpawn = 0;
+        let rainbowOrbSpawnCooldown = 45000; // 45 seconds between possible spawns
+        let rainbowOrbSpawnChance = 0.1; // 10% chance when cooldown is over
 
         let playerCharacter; // "trump" or "kamala"
 
@@ -121,6 +129,7 @@
             animate();
             setInterval(spawnNPC, 3000);
             setInterval(spawnHeal, 10000);
+            setInterval(trySpawnRainbowOrb, 5000); // Check every 5 seconds
         }
 
         function spawnNPC() {
@@ -172,7 +181,7 @@
                 const dist = player.position.distanceTo(npc.position);
                 if (dist < 2) {
                     npcHealth.set(npc, npcHealth.get(npc) - 1);
-                    if (hearts > 0) {
+                    if (hearts > 0 && !rainbowOrbActive) { // Don't take damage during rainbow mode
                         hearts = Math.max(0, hearts - 0.5);
                         hitFlash = 10;
                         updateHearts();
@@ -234,13 +243,18 @@
 
         function spawnGiantNPC() {
             const geo = new THREE.BoxGeometry(3, 6, 3);
-            const kamalaTexture = loadTexture('https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Kamala_Harris_Vice_Presidential_Portrait.jpg/1200px-Kamala_Harris_Vice_Presidential_Portrait.jpg');
+            let giantTexture;
+            if (playerCharacter === "trump") {
+                giantTexture = loadTexture('https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Kamala_Harris_Vice_Presidential_Portrait.jpg/1200px-Kamala_Harris_Vice_Presidential_Portrait.jpg');
+            } else {
+                giantTexture = loadTexture('https://upload.wikimedia.org/wikipedia/commons/5/56/Donald_Trump_official_portrait.jpg');
+            }
             const mats = [
                 new THREE.MeshPhongMaterial({ color: 0x8800ff }),
                 new THREE.MeshPhongMaterial({ color: 0x8800ff }),
                 new THREE.MeshPhongMaterial({ color: 0x8800ff }),
                 new THREE.MeshPhongMaterial({ color: 0x8800ff }),
-                new THREE.MeshPhongMaterial({ map: kamalaTexture }),
+                new THREE.MeshPhongMaterial({ map: giantTexture }),
                 new THREE.MeshPhongMaterial({ color: 0x8800ff })
             ];
             giantNPC = new THREE.Mesh(geo, mats);
@@ -262,6 +276,96 @@
             );
             scene.add(heal);
             heals.push(heal);
+        }
+
+        function trySpawnRainbowOrb() {
+            const now = Date.now();
+            // Only try to spawn if cooldown has passed, no orb exists, and random chance hits
+            if (now - lastRainbowOrbSpawn > rainbowOrbSpawnCooldown &&
+                rainbowOrbs.length === 0 &&
+                Math.random() < rainbowOrbSpawnChance) {
+                spawnRainbowOrb();
+                lastRainbowOrbSpawn = now;
+            }
+        }
+
+        function spawnRainbowOrb() {
+            const orbGeo = new THREE.SphereGeometry(0.7, 32, 32);
+            const orbMat = new THREE.MeshPhongMaterial({
+                color: 0xffffff,
+                emissive: 0x444444,
+                transparent: true,
+                opacity: 0.8
+            });
+            const orb = new THREE.Mesh(orbGeo, orbMat);
+            orb.position.set(
+                (Math.random() - 0.5) * 25,
+                1.5,
+                (Math.random() - 0.5) * 25
+            );
+            orb.userData = { time: 0 }; // For rainbow animation
+            scene.add(orb);
+            rainbowOrbs.push(orb);
+        }
+
+        function updateRainbowOrbs() {
+            for (let orb of rainbowOrbs) {
+                orb.userData.time += 0.1;
+                // Rainbow color cycling
+                const r = Math.sin(orb.userData.time) * 0.5 + 0.5;
+                const g = Math.sin(orb.userData.time + 2) * 0.5 + 0.5;
+                const b = Math.sin(orb.userData.time + 4) * 0.5 + 0.5;
+                orb.material.color.setRGB(r, g, b);
+                orb.material.emissive.setRGB(r * 0.3, g * 0.3, b * 0.3);
+
+                // Float up and down
+                orb.position.y = 1.5 + Math.sin(orb.userData.time * 2) * 0.3;
+                // Rotate
+                orb.rotation.y += 0.02;
+            }
+        }
+
+        function updatePlayerRainbow() {
+            if (rainbowMode) {
+                const elapsed = Date.now() - rainbowStartTime;
+                if (elapsed > rainbowDuration) {
+                    // End rainbow mode
+                    rainbowMode = false;
+                    rainbowOrbActive = false;
+                    // Reset player materials to original colors
+                    resetPlayerMaterials();
+                } else {
+                    // Update rainbow colors
+                    const time = elapsed * 0.01;
+                    const r = Math.sin(time) * 0.5 + 0.5;
+                    const g = Math.sin(time + 2) * 0.5 + 0.5;
+                    const b = Math.sin(time + 4) * 0.5 + 0.5;
+
+                    // Apply rainbow to all player materials except the face
+                    for (let i = 0; i < player.material.length; i++) {
+                        if (i !== 4) { // Don't change face material
+                            player.material[i].color.setRGB(r, g, b);
+                            player.material[i].emissive.setRGB(r * 0.2, g * 0.2, b * 0.2);
+                        }
+                    }
+                }
+            }
+        }
+
+        function resetPlayerMaterials() {
+            let playerColor;
+            if (playerCharacter === "trump") {
+                playerColor = 0xffcc00;
+            } else {
+                playerColor = 0x00ccff;
+            }
+
+            for (let i = 0; i < player.material.length; i++) {
+                if (i !== 4) { // Don't change face material
+                    player.material[i].color.setHex(playerColor);
+                    player.material[i].emissive.setHex(0x000000);
+                }
+            }
         }
 
         function animate() {
@@ -304,7 +408,7 @@
                 ) {
                     const now = Date.now();
                     const lastAttack = npcLastHit.get(npc) || 0;
-                    if (now - lastAttack >= 5000 && !invincible) { // 5 second cooldown per NPC
+                    if (now - lastAttack >= 5000 && !invincible && !rainbowOrbActive) { // Can't be hurt during rainbow mode
                         hearts = Math.max(0, hearts - 0.5); // Only half a heart!
                         hitFlash = 10; // trigger hit flash
                         updateHearts();
@@ -323,7 +427,8 @@
                 if (
                     giantNPC.position.distanceTo(player.position) < 2 &&
                     hearts > 0 &&
-                    !invincible
+                    !invincible &&
+                    !rainbowOrbActive // Can't be hurt during rainbow mode
                 ) {
                     hearts = Math.max(0, hearts - 0.5);
                     hitFlash = 10;
@@ -344,10 +449,26 @@
                 }
             }
 
+            // Check for rainbow orb pickup
+            for (let i = rainbowOrbs.length - 1; i >= 0; i--) {
+                if (player.position.distanceTo(rainbowOrbs[i].position) < 1.5) {
+                    scene.remove(rainbowOrbs[i]);
+                    rainbowOrbs.splice(i, 1);
+                    // Activate rainbow mode
+                    rainbowMode = true;
+                    rainbowOrbActive = true;
+                    rainbowStartTime = Date.now();
+                }
+            }
+
             // Handle invincibility timer
             if (invincible && Date.now() - lastHit > invincibleTime) {
                 invincible = false;
             }
+
+            // Update rainbow orbs and player rainbow effect
+            updateRainbowOrbs();
+            updatePlayerRainbow();
 
             // Hit flash effect
             if (hitFlash > 0) {
