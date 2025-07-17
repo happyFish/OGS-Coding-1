@@ -36,6 +36,8 @@ class Arcade {
 
             machine.addEventListener('click', (e) => {
                 e.preventDefault();
+                document.querySelectorAll('.arcade-machine').forEach(m => m.classList.remove('active'));
+                machine.classList.add('active');
                 this.loadMachine(name);
             });
         });

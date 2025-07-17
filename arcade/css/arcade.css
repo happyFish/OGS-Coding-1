@@ -95,9 +95,15 @@ iframe {
     justify-content: center;
 }
 
-.arcade-machine:hover {
+.arcade-machine:hover,
+.arcade-machine.active {
     transform: scale(1.05);
+    color: rgba(245, 245, 65, 0.8);
+}
+
+.arcade-machine.active {
     box-shadow: 0 0 40px #ff0, 0 0 60px #0ff inset;
+    color: rgb(245, 245, 65);
 }
 
 .arcade-machine h2 {
