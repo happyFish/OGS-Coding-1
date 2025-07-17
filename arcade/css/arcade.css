@@ -49,6 +49,7 @@ h1 {
 iframe {
     display: none;
     margin: 20px;
+    background: white;
 }
 
 .machine iframe {
