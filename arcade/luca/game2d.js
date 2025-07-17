@@ -106,6 +106,9 @@ function resetPlayer() {
     player.x = 50;
     player.y = 300;
     player.vy = 0;
+    for (const key in keys) {
+        keys[key] = false; // Reset all keys
+    }
     setupLevel(currentLevel); // <-- Add this line to respawn enemies
 }
 
