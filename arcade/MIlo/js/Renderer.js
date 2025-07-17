@@ -60,7 +60,7 @@ class Renderer {
         this.ctx.fill();
 
         // Draw arms (with punch animation and walking)
-        this.ctx.strokeStyle = "#ffe0b2";
+        this.ctx.strokeStyle = p.isPlayer1 ? "#2196f3" : p.outfitColor; // Player 1: blue arms, Player 2: grey arms
         this.ctx.lineWidth = 6;
         this.ctx.beginPath();
 
@@ -119,7 +119,6 @@ class Renderer {
 
         // Always show golden staff in Player 2's hand (acts like dagger)
         if (!p.isPlayer1) {
-            // Right hand (matches punch animation if attacking, otherwise follows arm swing)
             let staffX, staffY, staffDir;
             if (p.attacking && !p.isKicking) {
                 if (p.facing === 1) {
@@ -132,57 +131,74 @@ class Renderer {
                     staffDir = -1;
                 }
             } else {
-                // Normal right hand position
                 let armSwing2 = -Math.sin(walkCycle) * 8;
                 staffX = p.x + GAME_CONFIG.PLAYER_WIDTH * 0.95;
                 staffY = p.y + 60 + armSwing2;
                 staffDir = p.facing === -1 ? -1 : 1;
             }
-            let staffEndX = staffX;
-            let staffEndY = staffY;
-            if (p.attacking) {
-                staffEndX += 35;
-            } else {
-                staffEndY += 35;
-            }
 
             this.ctx.save();
-            // Staff (long, golden, aligned with hand)
-            this.ctx.strokeStyle = "#FFD700"; // Gold color
-            this.ctx.lineWidth = 8;
-            this.ctx.beginPath();
-            this.ctx.moveTo(staffX, staffY);
-            this.ctx.lineTo(staffEndX + 0 * staffDir, staffEndY); // Long staff, straight down from hand
-            this.ctx.stroke();
-
-            // Staff tip (rounded)
-            this.ctx.beginPath();
-            this.ctx.arc(staffEndX + 0 * staffDir, staffEndY, 7, 0, Math.PI * 2);
-            this.ctx.fillStyle = "#FFD700";
-            this.ctx.fill();
-
-            // Staff end (rounded at hand)
-            this.ctx.beginPath();
-            this.ctx.arc(staffX, staffY, 6, 0, Math.PI * 2);
-            this.ctx.fillStyle = "#FFD700";
-            this.ctx.fill();
-
+            if (p.hasGun) {
+                // Draw gun (rectangle with barrel)
+                this.ctx.fillStyle = "#222";
+                this.ctx.fillRect(staffX, staffY, 28 * staffDir, 8);
+                // Barrel
+                this.ctx.fillStyle = "#888";
+                this.ctx.fillRect(staffX + 28 * staffDir, staffY + 2, 12 * staffDir, 4);
+            } else {
+                // Draw cane (long, golden)
+                this.ctx.strokeStyle = "#FFD700";
+                this.ctx.lineWidth = 8;
+                this.ctx.beginPath();
+                this.ctx.moveTo(staffX, staffY);
+                this.ctx.lineTo(staffX, staffY + 48);
+                this.ctx.stroke();
+                // Cane tip
+                this.ctx.beginPath();
+                this.ctx.arc(staffX, staffY + 48, 7, 0, Math.PI * 2);
+                this.ctx.fillStyle = "#FFD700";
+                this.ctx.fill();
+                // Cane end
+                this.ctx.beginPath();
+                this.ctx.arc(staffX, staffY, 6, 0, Math.PI * 2);
+                this.ctx.fillStyle = "#FFD700";
+                this.ctx.fill();
+            }
             this.ctx.restore();
+        }
+
+        // Draw Player 2's bullets
+        if (!p.isPlayer1 && p.bullets && p.bullets.length > 0) {
+            for (let bullet of p.bullets) {
+                if (bullet.active) {
+                    this.ctx.save();
+                    this.ctx.fillStyle = "#bbb";
+                    this.ctx.shadowColor = "#fff";
+                    this.ctx.shadowBlur = 8;
+                    this.ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                    this.ctx.restore();
+                }
+            }
         }
     }
 
     drawHealth(p, x, y) {
-        for (let i = 0; i < Math.floor(p.health); i++) {
-            this.ctx.fillStyle = "#e33";
-            this.ctx.fillRect(x + i * 22, y, 20, 20);
+        const blockW = 12, blockH = 12, gap = 4;
+        let health = Math.max(0, p.health);
+
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 10; col++) {
+                let i = row * 10 + col;
+                let filled = i < health;
+                this.ctx.fillStyle = filled ? "#e33" : "#444";
+                this.ctx.fillRect(x + col * (blockW + gap), y + row * (blockH + gap), blockW, blockH);
+            }
         }
-        // Draw half-heart if needed
-        if (p.health % 1 >= 0.5) {
-            this.ctx.fillStyle = "#e33";
-            this.ctx.globalAlpha = 0.5;
-            this.ctx.fillRect(x + Math.floor(p.health) * 22, y, 20, 20);
-            this.ctx.globalAlpha = 1.0;
-        }
+        // Health text
+        this.ctx.fillStyle = "#fff";
+        this.ctx.font = "bold 13px Arial";
+        this.ctx.textAlign = "left";
+        this.ctx.fillText(`${Math.ceil(p.health)} / 30`, x, y + 3 * (blockH + gap) + 10);
     }
 
     drawParticles(particles) {
@@ -231,4 +247,4 @@ class Renderer {
     drawBackground() {
         this.ctx.drawImage(this.background, 0, 0, GAME_CONFIG.CANVAS_WIDTH, GAME_CONFIG.CANVAS_HEIGHT);
     }
-} 
+}

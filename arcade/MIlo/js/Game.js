@@ -6,29 +6,29 @@ class Game {
         this.renderer = new Renderer(this.ctx);
         this.particleSystem = new ParticleSystem();
         this.combatSystem = new CombatSystem(this.particleSystem);
-        
+
         this.p1 = new Player(PLAYER_CONFIG.P1, true);
         this.p2 = new Player(PLAYER_CONFIG.P2, false);
-        
+
         this.staffFlying = false;
         this.staffData = {
             x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, timer: 0, flying: false
         };
-        
+
         this.gameRunning = true;
     }
 
     update() {
         const now = Date.now();
         const keys = this.inputManager.getKeys();
-        
+
         // Update players
         this.p1.update(keys, CONTROLS.P1, now);
         this.p2.update(keys, CONTROLS.P2, now);
-        
+
         // Handle staff throwing for Player 2
-        if (CONTROLS.P2.SPECIAL && keys[CONTROLS.P2.SPECIAL] && 
-            !this.p2.specialKicking && now - this.p2.lastSpecialKick > 6000 && 
+        if (CONTROLS.P2.SPECIAL && keys[CONTROLS.P2.SPECIAL] &&
+            !this.p2.specialKicking && now - this.p2.lastSpecialKick > 6000 &&
             this.p2.onGround) {
             const dist = Math.abs(this.p1.x - this.p2.x);
             if (dist > 120) {
@@ -51,7 +51,7 @@ class Game {
                 }, 700);
             }
         }
-        
+
         // Update flying staff
         if (this.staffData.flying) {
             this.staffData.x += this.staffData.vx;
@@ -60,15 +60,15 @@ class Game {
             // Remove staff after 40 frames if it misses
             if (this.staffData.timer > 40) this.staffData.flying = false;
         }
-        
+
         // Check combat
         this.combatSystem.checkAttack(this.p1, this.p2);
         this.combatSystem.checkAttack(this.p2, this.p1);
         this.combatSystem.checkStaffCollision(this.staffData, this.p1);
-        
+        this.combatSystem.checkBulletCollision(this.p2.bullets, this.p1)
         // Update particles
         this.particleSystem.updateParticles();
-        
+
         // Check game over
         if (this.p1.health <= 0 || this.p2.health <= 0) {
             this.gameRunning = false;
@@ -83,11 +83,11 @@ class Game {
         this.renderer.drawHealth(this.p1, 20, 20);
         this.renderer.drawHealth(this.p2, GAME_CONFIG.CANVAS_WIDTH - 20 - GAME_CONFIG.MAX_HEALTH * 22, 20);
         this.renderer.drawParticles(this.particleSystem.getParticles());
-        
+
         if (this.staffData.flying) {
             this.renderer.drawFlyingStaff(this.staffData);
         }
-        
+
         if (!this.gameRunning) {
             const winner = this.p1.health <= 0 ? "Player 2" : "Player 1";
             this.renderer.drawGameOver(winner);

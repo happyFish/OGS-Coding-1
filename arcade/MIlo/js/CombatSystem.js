@@ -5,7 +5,7 @@ class CombatSystem {
 
     checkAttack(attacker, defender) {
         if (!attacker.attacking) return;
-        
+
         // Attack hitbox
         let ax, ay, aw, ah;
         if (attacker.specialKicking) {
@@ -31,36 +31,36 @@ class CombatSystem {
             aw = 20;
             ah = 20;
         }
-        
+
         // Defender hitbox
         let dx = defender.x, dy = defender.y, dw = GAME_CONFIG.PLAYER_WIDTH, dh = GAME_CONFIG.PLAYER_HEIGHT;
-        
+
         if (ax < dx + dw && ax + aw > dx && ay < dy + dh && ay + ah > dy) {
             let damage = attacker.isKicking ? 2 : 1;
             if (attacker.specialKicking) damage = 6; // Special staff attack does 6 damage
             else if (!attacker.isPlayer1 && !attacker.isKicking) damage = 1; // Regular staff attack does 1 damage
             if (attacker.specialAttacking) damage = 5;
-            
+
             if (defender.blocking) {
                 defender.takeDamage(damage / 2);
             } else {
                 defender.takeDamage(damage);
             }
-            
+
             attacker.attacking = false;
             attacker.specialAttacking = false;
             attacker.specialKicking = false;
 
             // Spawn red glitter at defender's neck for special, else normal
-            let hitY = attacker.specialKicking ? defender.y + 18 : 
-                      (attacker.isKicking ? defender.y + 75 : defender.y + 50);
+            let hitY = attacker.specialKicking ? defender.y + 18 :
+                (attacker.isKicking ? defender.y + 75 : defender.y + 50);
             this.particleSystem.spawnParticles(defender.x + GAME_CONFIG.PLAYER_WIDTH / 2, hitY);
         }
     }
 
     checkStaffCollision(staffData, defender) {
-        if (staffData.flying && 
-            Math.abs(staffData.x - (defender.x + GAME_CONFIG.PLAYER_WIDTH / 2)) < 24 && 
+        if (staffData.flying &&
+            Math.abs(staffData.x - (defender.x + GAME_CONFIG.PLAYER_WIDTH / 2)) < 24 &&
             Math.abs(staffData.y - (defender.y + 20)) < 24) {
             let damage = 5; // Staff flying hit does 5 damage
             if (defender.blocking) {
@@ -72,4 +72,18 @@ class CombatSystem {
             this.particleSystem.spawnParticles(defender.x + GAME_CONFIG.PLAYER_WIDTH / 2, defender.y + 18);
         }
     }
-} 
+
+    checkBulletCollision(bullets, defender) {
+        for (let bullet of bullets) {
+            if (bullet.active &&
+                bullet.x + bullet.width > defender.x &&
+                bullet.x < defender.x + GAME_CONFIG.PLAYER_WIDTH &&
+                bullet.y + bullet.height > defender.y &&
+                bullet.y < defender.y + GAME_CONFIG.PLAYER_HEIGHT) {
+                defender.health -= 1;
+                bullet.active = false;
+                this.particleSystem.spawnParticles(defender.x + GAME_CONFIG.PLAYER_WIDTH / 2, defender.y + 30);
+            }
+        }
+    }
+}
