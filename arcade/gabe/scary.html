@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>The Woods</title>
+    <style>
+        body {
+            background: #111;
+            color: #eee;
+            font-family: monospace;
+            padding: 2em;
+        }
+
+        #game {
+            max-width: 600px;
+            margin: auto;
+        }
+
+        button {
+            margin: 0.5em;
+            padding: 1em;
+            background: #222;
+            color: #eee;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #status {
+            margin-top: 1em;
+        }
+
+        #gameTime {
+            text-align: center;
+            font-size: 1.2em;
+            margin-top: 0.2em;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css?family=Creepster&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="game">
+        <div id="menu" style="text-align:center; margin-top:60px;">
+            <h1
+                style="font-family: 'Creepster', monospace, cursive; font-size:3em; color:#ffe066; text-shadow: 0 0 10px #f00, 0 0 20px #000;">
+                The Woods
+            </h1>
+            <button id="playBtn" style="
+        font-family: 'Creepster', monospace, cursive;
+        font-size:2em;
+        padding: 0.5em 2em;
+        background: #111;
+        color: #ffe066;
+        border: 3px solid #f00;
+        border-radius: 10px;
+        box-shadow: 0 0 10px #f00;
+        cursor: pointer;
+        margin-top: 2em;
+        transition: background 0.2s, color 0.2s;
+    ">PLAY</button>
+            <div id="difficultyBtns" style="margin-top:2em; display:none;">
+                <button id="normalBtn" style="
+            font-family: 'Creepster', monospace, cursive;
+            font-size:1.5em;
+            padding: 0.5em 2em;
+            background: #222;
+            color: #ffe066;
+            border: 2px solid #ffe066;
+            border-radius: 10px;
+            margin-right: 1em;
+            cursor: pointer;
+        ">Normal</button>
+                <button id="hardBtn" style="
+            font-family: 'Creepster', monospace, cursive;
+            font-size:1.5em;
+            padding: 0.5em 2em;
+            background: #222;
+            color: #f00;
+            border: 2px solid #f00;
+            border-radius: 10px;
+            cursor: pointer;
+        ">Hard</button>
+            </div>
+        </div>
+        <h2 id="gameTime"></h2>
+        <canvas id="scene" width="600" height="200" style="background:#222;display:block;margin-bottom:1em;"></canvas>
+        <div id="story"></div>
+        <div id="actions"></div>
+        <div id="status"></div>
+    </div>
+    <audio id="creepy-music" loop>
+        <source src="../audio/dark_ambience.wav">
+    </audio>
+    <audio id="jump-scare" src="../audio/jump-scare-1.wav"></audio>
+    <script>
+        let monsterDistance = 50;
+        let hasWeapon = false;
+        let startTime = Date.now();
+        let nightDuration = 3 * 60 * 1000; // 3 minutes in ms (was 5 * 60 * 1000)
+        let gameOver = false;
+        let lastAction = "stand"; // NEW: Track what the player is doing
+        let canRun = true; // Add this near your global variables
+        let relics = []; // Add a new variable to track relics found
+        let portalOpen = false; // NEW: Track if the portal is open
+        let portalReady = false; // At the top, add a flag to track if the portal is ready
+        let canInspect = true; // Add this near your global variables
+        let monsterApproachInterval; // So we can clear/set it
+
+        const playMusic = () => {
+            const music = document.getElementById('creepy-music');
+            music.play();
+            window.removeEventListener('click', playMusic);
+        };
+        window.addEventListener('click', playMusic);
+
+        // Add this near your global variables (after let gameOver = false; ...)
+        monsterApproachInterval = setInterval(() => {
+            if (!gameOver) {
+                monsterDistance -= 2;
+                monsterDistance = Math.max(monsterDistance, 0);
+                updateStatus();
+                checkGameState();
+            }
+        }, 2000);
+
+        function showStory(text) {
+            document.getElementById('story').innerText = text;
+        }
+
+        // Helper to enable/disable the Run button
+        function updateRunButton(enabled) {
+            const actionsDiv = document.getElementById('actions');
+            const buttons = actionsDiv.getElementsByTagName('button');
+            for (let btn of buttons) {
+                if (btn.innerText === "Run") {
+                    btn.disabled = !enabled;
+                    btn.style.opacity = enabled ? "1" : "0.5";
+                    btn.innerText = enabled ? "Run" : "Run (cooldown)";
+                }
+            }
+        }
+
+        // Helper to enable/disable the Inspect Area button
+        function updateInspectButton(enabled) {
+            const actionsDiv = document.getElementById('actions');
+            const buttons = actionsDiv.getElementsByTagName('button');
+            for (let btn of buttons) {
+                if (btn.innerText === "Inspect Area" || btn.innerText === "Inspect Area (cooldown)") {
+                    btn.disabled = !enabled;
+                    btn.style.opacity = enabled ? "1" : "0.5";
+                    btn.innerText = enabled ? "Inspect Area" : "Inspect Area (cooldown)";
+                }
+            }
+        }
+
+        function showActions(actions) {
+            const actionsDiv = document.getElementById('actions');
+            actionsDiv.innerHTML = '';
+            actions.forEach(a => { // <-- FIXED: added parentheses around 'a'
+                const btn = document.createElement('button');
+                btn.innerText = a.text;
+                btn.onclick = a.fn;
+                // If this is the Run button, apply cooldown state
+                if (a.text === "Run" && !canRun) {
+                    btn.disabled = true;
+                    btn.style.opacity = "0.5";
+                    btn.innerText = "Run (cooldown)";
+                }
+                // Inspect Area button cooldown
+                if (a.text === "Inspect Area" && !canInspect) {
+                    btn.disabled = true;
+                    btn.style.opacity = "0.5";
+                    btn.innerText = "Inspect Area (cooldown)";
+                }
+                actionsDiv.appendChild(btn);
+            });
+            // If portal is open, show the Use Portal button
+            if (portalOpen && !gameOver) {
+                const portalBtn = document.createElement('button');
+                portalBtn.innerText = "Enter Portal";
+                portalBtn.onclick = usePortalAction;
+                portalBtn.style.background = "linear-gradient(90deg, #6ff, #f6f, #ff6)";
+                portalBtn.style.color = "#222";
+                actionsDiv.appendChild(portalBtn);
+            }
+        }
+
+        function drawScene() {
+            const canvas = document.getElementById('scene');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw trees (simple lines)
+            ctx.strokeStyle = "#444";
+            for (let i = 0; i < 10; i++) {
+                let x = 50 + i * 55 + Math.sin(Date.now() / 1000 + i) * 10;
+                ctx.beginPath();
+                ctx.moveTo(x, 200);
+                ctx.lineTo(x, 80);
+                ctx.stroke();
+            }
+
+            // Draw ground
+            ctx.fillStyle = "#333";
+            ctx.fillRect(0, 180, 600, 20);
+
+            // Draw monster eyes (get bigger as monster gets closer)
+            let eyeY = 120;
+            let maxDist = 50;
+            let t = Math.max(0, Math.min(1, 1 - monsterDistance / maxDist));
+            let eyeSep = 40 - t * 20;
+            let eyeSize = 8 + t * 20;
+            let eyeX1 = 300 - eyeSep;
+            let eyeX2 = 300 + eyeSep;
+
+            // Flicker effect
+            let flicker = Math.random() * 2;
+
+            ctx.beginPath();
+            ctx.arc(eyeX1, eyeY + flicker, eyeSize, 0, 2 * Math.PI);
+            ctx.arc(eyeX2, eyeY + flicker, eyeSize, 0, 2 * Math.PI);
+            ctx.fillStyle = "#f00";
+            ctx.shadowColor = "#f00";
+            ctx.shadowBlur = 10 + t * 20;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Draw player's action at bottom center
+            if (lastAction === "run") {
+                // Draw running silhouette with arms and legs in motion
+                ctx.save();
+                ctx.strokeStyle = "#eee";
+                ctx.lineWidth = 4;
+
+                // Body
+                ctx.beginPath();
+                ctx.moveTo(300, 170);
+                ctx.lineTo(300, 190);
+                ctx.stroke();
+
+                // Head
+                ctx.beginPath();
+                ctx.arc(300, 163, 7, 0, Math.PI * 2);
+                ctx.fillStyle = "#eee";
+                ctx.fill();
+
+                // Arms (one forward, one back)
+                ctx.beginPath();
+                ctx.moveTo(300, 175);
+                ctx.lineTo(312, 182); // right arm forward
+                ctx.moveTo(300, 175);
+                ctx.lineTo(288, 180); // left arm back
+                ctx.stroke();
+
+                // Legs (one forward, one back)
+                ctx.beginPath();
+                ctx.moveTo(300, 190);
+                ctx.lineTo(312, 200); // right leg forward
+                ctx.moveTo(300, 190);
+                ctx.lineTo(288, 200); // left leg back
+                ctx.stroke();
+
+                // Motion lines behind
+                ctx.strokeStyle = "#0ff";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(285, 185);
+                ctx.lineTo(275, 180);
+                ctx.moveTo(285, 195);
+                ctx.lineTo(275, 200);
+                ctx.stroke();
+
+                ctx.restore();
+            } else if (lastAction === "hide") {
+                // Draw crouched silhouette
+                ctx.fillStyle = "#888";
+                ctx.beginPath();
+                ctx.ellipse(300, 190, 15, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#444";
+                ctx.beginPath();
+                ctx.arc(300, 185, 6, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (lastAction === "weapon") {
+                // Draw hand holding a branch
+                ctx.strokeStyle = "#964B00";
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(300, 180);
+                ctx.lineTo(320, 170);
+                ctx.stroke();
+                ctx.lineWidth = 1;
+                ctx.fillStyle = "#eee";
+                ctx.beginPath();
+                ctx.arc(300, 180, 7, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (lastAction === "listen") {
+                // Draw ear/listening lines
+                ctx.strokeStyle = "#0f0";
+                ctx.beginPath();
+                ctx.arc(300, 185, 10, Math.PI * 0.2, Math.PI * 0.8);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(300, 185, 14, Math.PI * 0.2, Math.PI * 0.8);
+                ctx.stroke();
+            } else {
+                // Default: standing silhouette
+                ctx.fillStyle = "#aaa";
+                ctx.fillRect(295, 170, 10, 20);
+                ctx.beginPath();
+                ctx.arc(300, 165, 7, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw portal if open
+            if (portalOpen && !gameOver) {
+                // Draw a glowing portal at the right side of the canvas
+                ctx.save();
+                let grad = ctx.createRadialGradient(550, 150, 10, 550, 150, 40);
+                grad.addColorStop(0, "#6ff");
+                grad.addColorStop(0.5, "#f6f");
+                grad.addColorStop(1, "rgba(255,255,255,0)");
+                ctx.globalAlpha = 0.8 + 0.2 * Math.sin(Date.now() / 300);
+                ctx.beginPath();
+                ctx.arc(550, 150, 40, 0, 2 * Math.PI);
+                ctx.fillStyle = grad;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+        }
+
+        function updateStatus() {
+            let timeLeft = Math.max(0, nightDuration - (Date.now() - startTime));
+            let min = Math.floor(timeLeft / 60000);
+            let sec = Math.floor((timeLeft % 60000) / 1000);
+            let relicText = relics.length > 0 ? ` | Relics: ${relics.join(", ")}` : "";
+            document.getElementById('status').innerText =
+                `Time left: ${min}:${sec.toString().padStart(2, '0')} | Monster distance: ${monsterDistance}m${relicText}`;
+            drawScene();
+        }
+
+        function monsterEvent() {
+            let event = Math.random();
+            if (event < 0.3) {
+                showStory("You hear the monster getting closer!");
+                monsterDistance -= Math.floor(Math.random() * 10) + 5;
+            } else if (event < 0.6) {
+                showStory("You hear the monster moving away... for now.");
+                monsterDistance += Math.floor(Math.random() * 10) + 5;
+            } else {
+                showStory("The woods are eerily quiet...");
+            }
+            monsterDistance = Math.max(monsterDistance, 0);
+        }
+        const jumpScare = document.getElementById('jump-scare');
+        function checkGameState() {
+            updateStatus();
+            // If the monster is very close, but player is hiding, let them survive
+            if (monsterDistance <= 0) {
+                if (lastAction === "hide") {
+                    showStory("You hold your breath as the monster passes right by you... You survive this time!");
+                    monsterDistance = 10 + Math.floor(Math.random() * 10); // Monster moves away a bit
+                    return false;
+                }
+                // If the player has a weapon (stick), always fight off the monster and lose the weapon
+                if (hasWeapon) {
+                    showStory("The monster attacks! You fight it off with your stick, barely escaping!");
+                    monsterDistance = 30;
+                    hasWeapon = false;
+                    return false;
+                }
+                showStory("The monster catches you. Your screams echo through the woods... GAME OVER");
+                if (!gameOver) jumpScare.play();
+                gameOver = true;
+                showActions([{ text: "Restart", fn: () => location.reload() }]);
+                setTimeout(showDeathEnding, 500); // Death ending
+                return true;
+            } else if (monsterDistance < 3) {
+                if (lastAction === "hide") {
+                    showStory("You hold your breath as the monster passes right by you... You survive this time!");
+                    monsterDistance = 10 + Math.floor(Math.random() * 10); // Monster moves away a bit
+                    return false;
+                }
+            }
+            let timeLeft = nightDuration - (Date.now() - startTime);
+            if (timeLeft <= 0) {
+                showStory("The sun rises. You survived the night!");
+                gameOver = true;
+                showCongratsScreen(); // Morning ending
+                return true;
+            }
+            return false;
+        }
+
+        function showDeathEnding() {
+            const canvas = document.getElementById('scene');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Black background with scary face (reuse drawScaryFace)
+            drawScaryFace();
+
+            // "You Died" text
+            ctx.font = "bold 36px monospace";
+            ctx.fillStyle = "#ff4444";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "#f00";
+            ctx.shadowBlur = 20;
+            ctx.fillText("You Died!", 300, 60);
+            ctx.shadowBlur = 0;
+
+            // Subtext
+            ctx.font = "20px monospace";
+            ctx.fillStyle = "#fff";
+            ctx.fillText("The monster caught you in the woods...", 300, 100);
+
+            ctx.font = "18px monospace";
+            ctx.fillStyle = "#fff";
+            ctx.fillText("Click anywhere to try again", 300, 190);
+
+            canvas.onclick = () => location.reload();
+        }
+
+        function showCongratsScreen() {
+            const canvas = document.getElementById('scene');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Black background
+            ctx.fillStyle = "#111";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Glowing sunrise
+            let grad = ctx.createRadialGradient(300, 200, 10, 300, 200, 200);
+            grad.addColorStop(0, "#fff799");
+            grad.addColorStop(0.3, "#ffe066");
+            grad.addColorStop(0.7, "#ffb347");
+            grad.addColorStop(1, "#111");
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(300, 200, 200, Math.PI, 2 * Math.PI);
+            ctx.fill();
+
+            // "Congratulations" text
+            ctx.font = "bold 36px monospace";
+            ctx.fillStyle = "#fff799";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "#ffe066";
+            ctx.shadowBlur = 20;
+            ctx.fillText("You Survived!", 300, 100);
+            ctx.shadowBlur = 0;
+
+            // Subtext
+            ctx.font = "20px monospace";
+            ctx.fillStyle = "#fff";
+            ctx.fillText("The sun rises and the monster vanishes.", 300, 140);
+
+            // Play again button
+            ctx.font = "18px monospace";
+            ctx.fillStyle = "#ffe066";
+            ctx.fillText("Click anywhere to play again", 300, 180);
+
+            // Restart on click
+            canvas.onclick = () => location.reload();
+        }
+
+        // Remove or comment out the monsterDistance change in nextTurn:
+        function nextTurn(extraStory = "") {
+            if (gameOver) return;
+            // monsterDistance -= Math.floor(Math.random() * 7) + 1; // REMOVE THIS LINE
+            if (!checkGameState()) {
+                showActions([
+                    { text: "Run", fn: runAction },
+                    { text: "Hide", fn: hideAction },
+                    { text: "Look for a weapon", fn: weaponAction },
+                    { text: "Listen carefully", fn: listenAction },
+                    { text: "Inspect Area", fn: inspectAreaAction } // NEW
+                ]);
+                if (extraStory) showStory(extraStory);
+            }
+        }
+
+        function runAction() {
+            if (!canRun) {
+                showStory("You're too exhausted to run again so soon! Wait a moment...");
+                return;
+            }
+            lastAction = "run";
+            canRun = false;
+            // Disable the Run button for 10 seconds
+            updateRunButton(false);
+            setTimeout(() => {
+                canRun = true;
+                updateRunButton(true);
+            }, 10000);
+
+            if (Math.random() < 0.25) { // 25% chance
+                showStory("You run blindly and suddenly stumble right into the monster!");
+                monsterDistance = 0;
+            } else {
+                monsterDistance += Math.floor(Math.random() * 10) + 5;
+                nextTurn("You run deeper into the woods.");
+            }
+            checkGameState();
+        }
+
+        function hideAction() {
+            lastAction = "hide"; // NEW
+            monsterEvent();
+            nextTurn();
+        }
+
+        function weaponAction() {
+            lastAction = "weapon"; // NEW
+            if (!hasWeapon && Math.random() < 0.3) {
+                hasWeapon = true;
+                nextTurn("You find a sturdy branch. You can use it as a weapon!");
+            } else {
+                monsterEvent();
+                nextTurn("You search, but find nothing useful.");
+            }
+        }
+
+        function listenAction() {
+            lastAction = "listen"; // NEW
+            monsterEvent();
+            nextTurn("You listen carefully...");
+        }
+
+        // Add the inspectAreaAction function
+        function inspectAreaAction() {
+            if (!canInspect) {
+                showStory("You need to wait before searching the area again!");
+                return;
+            }
+            canInspect = false;
+            updateInspectButton(false);
+            setTimeout(() => {
+                canInspect = true;
+                updateInspectButton(true);
+            }, 20000); // 20 seconds
+
+            lastAction = "inspect";
+            let found = Math.random();
+            if (found < 0.2 && !relics.includes("Ancient Coin")) {
+                relics.push("Ancient Coin");
+                showStory("You search the area and find an Ancient Coin, glinting in the moonlight!");
+            } else if (found < 0.35 && !relics.includes("Old Locket")) {
+                relics.push("Old Locket");
+                showStory("You brush away some leaves and discover an Old Locket. It feels cold to the touch.");
+            } else if (found < 0.45 && !relics.includes("Strange Idol")) {
+                relics.push("Strange Idol");
+                showStory("You dig in the dirt and uncover a Strange Idol. It gives you chills.");
+            } else if (found < 0.5 && !relics.includes("Rusty Key")) {
+                relics.push("Rusty Key");
+                showStory("You find a Rusty Key half-buried near a tree root.");
+            } else {
+                showStory("You search the area but find nothing except shadows and leaves.");
+            }
+            // If all relics found, set portalReady and show message
+            if (
+                relics.includes("Ancient Coin") &&
+                relics.includes("Old Locket") &&
+                relics.includes("Strange Idol") &&
+                relics.includes("Rusty Key")
+            ) {
+                portalReady = true;
+                showStory("A strange energy fills the air... Press ENTER to escape through the portal!");
+            }
+            nextTurn();
+        }
+
+        // Listen for Enter key to use the portal if ready
+        document.addEventListener('keydown', function (e) {
+            if (portalReady && !gameOver && (e.key === "Enter" || e.key === "Return")) {
+                gameOver = true;
+                showStory("You leap into the portal and escape the nightmare!");
+                showPortalWinScreen(); // Portal ending
+            }
+        });
+
+        function drawScaryFace() {
+            const canvas = document.getElementById('scene');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Black background
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Flickering red overlay
+            for (let i = 0; i < 15; i++) {
+                ctx.globalAlpha = 0.07 + Math.random() * 0.13;
+                ctx.fillStyle = "#b30000";
+                ctx.beginPath();
+                ctx.arc(300 + Math.random() * 60 - 30, 100 + Math.random() * 60 - 30, 200 + Math.random() * 40, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // Eyes - large, glowing, uneven
+            ctx.save();
+            ctx.shadowColor = "#f00";
+            ctx.shadowBlur = 80;
+            ctx.beginPath();
+            ctx.ellipse(220, 100, 50, 35, Math.PI * 0.1, 0, 2 * Math.PI);
+            ctx.ellipse(380, 100, 55, 38, -Math.PI * 0.1, 0, 2 * Math.PI);
+            ctx.fillStyle = "#f00";
+            ctx.fill();
+            ctx.restore();
+
+            // Pupils - small, white, off-center
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(210, 110, 12, 0, 2 * Math.PI);
+            ctx.arc(390, 110, 10, 0, 2 * Math.PI);
+            ctx.fillStyle = "#fff";
+            ctx.shadowColor = "#fff";
+            ctx.shadowBlur = 10;
+            ctx.fill();
+            ctx.restore();
+
+            // Jagged mouth with sharp teeth
+            ctx.save();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(200, 170);
+            ctx.lineTo(230, 200);
+            ctx.lineTo(250, 185);
+            ctx.lineTo(270, 210);
+            ctx.lineTo(300, 190);
+            ctx.lineTo(330, 210);
+            ctx.lineTo(350, 185);
+            ctx.lineTo(370, 200);
+            ctx.lineTo(400, 170);
+            ctx.stroke();
+
+            // Teeth (more, sharper, bloodier)
+            ctx.strokeStyle = "#f00";
+            ctx.lineWidth = 4;
+            for (let i = 210; i < 390; i += 10) {
+                ctx.beginPath();
+                ctx.moveTo(i, 190 + Math.sin(i) * 5);
+                ctx.lineTo(i + 5, 215 + Math.random() * 10);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Dripping blood effect (more drips, thicker, longer)
+            ctx.save();
+            ctx.strokeStyle = "#b30000";
+            ctx.lineWidth = 6;
+            for (let i = 0; i < 12; i++) {
+                let x = 220 + Math.random() * 160;
+                ctx.beginPath();
+                ctx.moveTo(x, 210 + Math.random() * 10);
+                ctx.bezierCurveTo(
+                    x + Math.random() * 10 - 5, 230 + Math.random() * 10,
+                    x + Math.random() * 20 - 10, 250 + Math.random() * 20,
+                    x + Math.random() * 10 - 5, 270 + Math.random() * 30
+                );
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Blood splatter on screen
+            for (let i = 0; i < 30; i++) {
+                ctx.save();
+                ctx.globalAlpha = 0.15 + Math.random() * 0.25;
+                ctx.fillStyle = "#b30000";
+                let r = 5 + Math.random() * 18;
+                let x = Math.random() * canvas.width;
+                let y = 120 + Math.random() * 80;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Quick flash effect
+            setTimeout(() => {
+                ctx.fillStyle = "rgba(255,0,0,0.8)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }, 200);
+
+            ctx.globalAlpha = 1;
+        }
+
+        // Game start
+        showStory("You wake up in the middle of dark, cold woods. Something is chasing you! Survive until sunrise (5 minutes)...");
+        showActions([
+            { text: "Run", fn: runAction },
+            { text: "Hide", fn: hideAction },
+            { text: "Look for a weapon", fn: weaponAction },
+            { text: "Listen carefully", fn: listenAction },
+            { text: "Inspect Area", fn: inspectAreaAction } // NEW
+        ]);
+        updateStatus();
+
+        // Replace showPortalWinScreen with this version to show a cozy cabin after entering the portal
+
+        function showPortalWinScreen() {
+            const canvas = document.getElementById('scene');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw night sky
+            ctx.fillStyle = "#1a2233";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw ground
+            ctx.fillStyle = "#2d2b1a";
+            ctx.fillRect(0, 150, canvas.width, 50);
+
+            // Draw a simple cozy cabin
+            ctx.fillStyle = "#7c4f21";
+            ctx.fillRect(230, 110, 140, 60);
+
+            // Roof
+            ctx.fillStyle = "#442a13";
+            ctx.beginPath();
+            ctx.moveTo(220, 110);
+            ctx.lineTo(300, 70);
+            ctx.lineTo(380, 110);
+            ctx.closePath();
+            ctx.fill();
+
+            // Door
+            ctx.fillStyle = "#a67c52";
+            ctx.fillRect(295, 140, 30, 30);
+
+            // Windows (yellow glow)
+            ctx.fillStyle = "#ffe066";
+            ctx.fillRect(250, 125, 20, 20);
+            ctx.fillRect(350, 125, 20, 20);
+
+            // Chimney
+            ctx.fillStyle = "#5a3c1a";
+            ctx.fillRect(355, 85, 15, 25);
+
+            // Smoke
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = "#ccc";
+            ctx.beginPath();
+            ctx.arc(362, 75, 8, 0, 2 * Math.PI);
+            ctx.arc(368, 65, 6, 0, 2 * Math.PI);
+            ctx.arc(374, 57, 4, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // "You Escaped!" text
+            ctx.font = "bold 36px monospace";
+            ctx.fillStyle = "#fff";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "#ffe066";
+            ctx.shadowBlur = 20;
+            ctx.fillText("You Escaped!", 300, 60);
+            ctx.shadowBlur = 0;
+
+            // Subtext
+            ctx.font = "20px monospace";
+            ctx.fillStyle = "#ffe066";
+            ctx.fillText("You leap through the portal and find safety in a cabin.", 300, 95);
+
+            ctx.font = "18px monospace";
+            ctx.fillStyle = "#fff";
+            ctx.fillText("Click anywhere to play again", 300, 190);
+
+            canvas.onclick = () => location.reload();
+        }
+
+        // Hide the game UI at start
+        document.getElementById('game').style.display = "block";
+        document.getElementById('story').style.display = "none";
+        document.getElementById('actions').style.display = "none";
+        document.getElementById('status').style.display = "none";
+        document.getElementById('scene').style.display = "none";
+
+        // Show menu, hide game UI
+        function showMenu() {
+            document.getElementById('menu').style.display = "block";
+            document.getElementById('story').style.display = "none";
+            document.getElementById('actions').style.display = "none";
+            document.getElementById('status').style.display = "none";
+            document.getElementById('scene').style.display = "none";
+        }
+        showMenu();
+
+        // When Play is pressed, show difficulty buttons
+        document.getElementById('playBtn').onclick = function () {
+            document.getElementById('playBtn').style.display = "none";
+            document.getElementById('difficultyBtns').style.display = "block";
+        };
+
+        // When Normal is pressed, start the game (default settings)
+        document.getElementById('normalBtn').onclick = function () {
+            document.getElementById('menu').style.display = "none";
+            document.getElementById('story').style.display = "block";
+            document.getElementById('actions').style.display = "block";
+            document.getElementById('status').style.display = "block";
+            document.getElementById('scene').style.display = "block";
+            startTime = Date.now();
+            monsterDistance = 50;
+            gameOver = false;
+            relics = [];
+            portalOpen = false;
+            portalReady = false;
+            canRun = true;
+            canInspect = true;
+            lastAction = "stand";
+            nightDuration = 3 * 60 * 1000; // 3 minutes for normal mode
+
+            // Clear any previous interval
+            if (monsterApproachInterval) clearInterval(monsterApproachInterval);
+            // Normal mode: monster moves 2 meters every 2 seconds
+            monsterApproachInterval = setInterval(() => {
+                if (!gameOver) {
+                    monsterDistance -= 2;
+                    monsterDistance = Math.max(monsterDistance, 0);
+                    updateStatus();
+                    checkGameState();
+                }
+            }, 2000);
+
+            updateStatus();
+            nextTurn("You start running through the woods.");
+        };
+
+        document.getElementById('hardBtn').onclick = function () {
+            document.getElementById('menu').style.display = "none";
+            document.getElementById('story').style.display = "block";
+            document.getElementById('actions').style.display = "block";
+            document.getElementById('status').style.display = "block";
+            document.getElementById('scene').style.display = "block";
+            startTime = Date.now();
+            monsterDistance = 50;
+            gameOver = false;
+            relics = [];
+            portalOpen = false;
+            portalReady = false;
+            canRun = true;
+            canInspect = true;
+            lastAction = "stand";
+            nightDuration = 5 * 60 * 1000; // 5 minutes for hard mode
+
+            // Clear any previous interval
+            if (monsterApproachInterval) clearInterval(monsterApproachInterval);
+            // Hard mode: monster moves 3 meters every 1 second
+            monsterApproachInterval = setInterval(() => {
+                if (!gameOver) {
+                    monsterDistance -= 3;
+                    monsterDistance = Math.max(monsterDistance, 0);
+                    updateStatus();
+                    checkGameState();
+                }
+            }, 1000);
+
+            updateStatus();
+            nextTurn("You start running through the woods. (Hard Mode)");
+        };
+    </script>
+</body>
+
+</html>
