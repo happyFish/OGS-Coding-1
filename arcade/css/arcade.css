@@ -37,6 +37,7 @@ h1 {
     text-align: center;
     letter-spacing: 5px;
     text-shadow: 0 0 8px #0ff, 0 0 4px #f00;
+    overflow-wrap: break-word;
 }
 
 .arcade-container.machine {
@@ -63,12 +64,17 @@ iframe {
 }
 
 .machine h1 {
-    font-size: 80%;
+    width: 210px;
+    overflow: hidden;
+    text-align: center;
+    text-transform: uppercase;
+    margin: 0;
 }
 
 .machine .machines {
     gap: 2px;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin: 0;
 }
 
 .machine .arcade-machine {
@@ -84,6 +90,9 @@ iframe {
     transition: transform 0.3s;
     box-shadow: 0 0 20px #f00, 0 0 40px #0ff inset;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .arcade-machine:hover {
