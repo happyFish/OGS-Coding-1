@@ -1,0 +1,441 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ragdoll Sandbox</title>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #444;
+            box-shadow: 0 0 20px #000a;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        // --- Ragdoll Physics ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let W = window.innerWidth, H = window.innerHeight;
+        canvas.width = W;
+        canvas.height = H;
+
+        window.addEventListener('resize', () => {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W;
+            canvas.height = H;
+        });
+
+        // Physics parameters
+        const gravity = 0.7;
+        const friction = 0.99;
+        const bounce = 0.5;
+
+        // Ragdoll structure
+        class Point {
+            constructor(x, y, pinned = false) {
+                this.x = x;
+                this.y = y;
+                this.oldx = x;
+                this.oldy = y;
+                this.pinned = pinned;
+            }
+            update() {
+                if (this.pinned) return;
+                let vx = (this.x - this.oldx) * friction;
+                let vy = (this.y - this.oldy) * friction + gravity;
+                this.oldx = this.x;
+                this.oldy = this.y;
+                this.x += vx;
+                this.y += vy;
+                // Floor collision
+                if (this.y > H - 10) {
+                    this.y = H - 10;
+                    this.oldy = this.y + vy * bounce;
+                }
+                // Wall collision
+                if (this.x < 10) {
+                    this.x = 10;
+                    this.oldx = this.x + vx * bounce;
+                } else if (this.x > W - 10) {
+                    this.x = W - 10;
+                    this.oldx = this.x + vx * bounce;
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 10, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffe100'; // crash test yellow
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#222';
+                ctx.stroke();
+                // Draw crash test symbols on head, chest, knees
+                if (this.isCrashTestHead) {
+                    drawCrashTestSymbol(this.x, this.y, 7);
+                }
+                if (this.isCrashTestChest) {
+                    drawCrashTestSymbol(this.x, this.y, 6);
+                }
+                if (this.isCrashTestKnee) {
+                    drawCrashTestSymbol(this.x, this.y, 4);
+                }
+                ctx.restore();
+            }
+        }
+
+    // Draw a crash test symbol (circle with black/yellow quadrants)
+    function drawCrashTestSymbol(x, y, r) {
+        ctx.save();
+        ctx.translate(x, y);
+        // Draw outer circle
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffe100';
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#111';
+        ctx.stroke();
+        // Draw quadrants
+        for (let i = 0; i < 4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, r, i * Math.PI / 2, (i + 1) * Math.PI / 2);
+            ctx.closePath();
+            ctx.fillStyle = (i % 2 === 0) ? '#111' : '#ffe100';
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+        class Stick {
+            constructor(p0, p1, length = null) {
+                this.p0 = p0;
+                this.p1 = p1;
+                this.length = length || dist(p0, p1);
+            }
+            update() {
+                let dx = this.p1.x - this.p0.x;
+                let dy = this.p1.y - this.p0.y;
+                let d = Math.sqrt(dx * dx + dy * dy);
+                let diff = (this.length - d) / d / 2;
+                let offsetX = dx * diff;
+                let offsetY = dy * diff;
+                if (!this.p0.pinned) {
+                    this.p0.x -= offsetX;
+                    this.p0.y -= offsetY;
+                }
+                if (!this.p1.pinned) {
+                    this.p1.x += offsetX;
+                    this.p1.y += offsetY;
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(this.p0.x, this.p0.y);
+                ctx.lineTo(this.p1.x, this.p1.y);
+                ctx.strokeStyle = '#ffe100'; // yellow
+                ctx.lineWidth = 6;
+                ctx.setLineDash([]); // solid line
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function dist(p0, p1) {
+            return Math.sqrt((p0.x - p1.x) ** 2 + (p0.y - p1.y) ** 2);
+        }
+
+
+        // Support multiple ragdolls
+        const points = [];
+        const sticks = [];
+        // Store rest poses for each ragdoll
+        const ragdolls = [];
+
+function createRagdoll(cx, cy) {
+    // Place feet on the floor
+    const floorY = H - 10;
+    // The vertical offset from foot to head is 180 (from previous code: 100+80)
+    // We'll use cx as the center x, and floorY as the base
+    const lFoot = new Point(cx - 25, floorY);
+    const rFoot = new Point(cx + 25, floorY);
+    const lHip = new Point(cx - 15, floorY - 60);
+    const rHip = new Point(cx + 15, floorY - 60);
+    const body = new Point(cx, floorY - 100);
+    const neck = new Point(cx, floorY - 150);
+    const head = new Point(cx, floorY - 180);
+    const lShoulder = new Point(cx - 30, floorY - 140);
+    const rShoulder = new Point(cx + 30, floorY - 140);
+    const lHand = new Point(cx - 60, floorY - 100);
+    const rHand = new Point(cx + 60, floorY - 100);
+
+    const ragdollPoints = [head, neck, body, lShoulder, rShoulder, lHand, rHand, lHip, rHip, lFoot, rFoot];
+    // Mark crash test dummy features
+    head.isCrashTestHead = true;
+    body.isCrashTestChest = true;
+    lFoot.isCrashTestKnee = true;
+    rFoot.isCrashTestKnee = true;
+    points.push(...ragdollPoints);
+    sticks.push(
+        new Stick(head, neck),
+        new Stick(neck, body),
+        new Stick(neck, lShoulder),
+        new Stick(neck, rShoulder),
+        new Stick(lShoulder, lHand),
+        new Stick(rShoulder, rHand),
+        new Stick(body, lHip),
+        new Stick(body, rHip),
+        new Stick(lHip, lFoot),
+        new Stick(rHip, rFoot),
+        new Stick(lHip, rHip)
+    );
+    // Store rest pose for this ragdoll
+    ragdolls.push({
+        points: ragdollPoints,
+        rest: ragdollPoints.map(p => ({x: p.x, y: p.y}))
+    });
+}
+
+        // Spawn the first ragdoll in the center
+        createRagdoll(W / 2, H / 2);
+
+        // Listen for 'S' key to spawn more ragdolls
+let explosionMode = false;
+let explosionEffect = null; // {x, y, r, alpha}
+let ropeMode = false;
+let ropeFirstPoint = null;
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') {
+                // Freeze/unfreeze the currently dragged point
+                if (dragging) {
+                    dragging.pinned = !dragging.pinned;
+                }
+            } else if (e.key === 's' || e.key === 'S') {
+                // Try to spawn at a random empty position near center
+                let found = false;
+                let attempts = 0;
+                let rx, ry;
+                while (!found && attempts < 300) {
+                    rx = W / 2 + (Math.random() - 0.5) * window.innerWidth;
+                    ry = H / 2 + (Math.random() - 0.5) * 200;
+                    // Check if this spot is empty (no point within 50px)
+                    let tooClose = false;
+                    for (let p of points) {
+                        if (Math.abs(p.x - rx) < 500 && Math.abs(p.y - (ry - 90)) < 500) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+                    if (!tooClose) found = true;
+                    attempts++;
+                }
+                createRagdoll(rx, ry);
+            } else if (e.key === 'r' || e.key === 'R') {
+                // Reset all ragdolls
+                points.length = 0;
+                sticks.length = 0;
+                ragdolls.length = 0;
+                createRagdoll(W / 2, H / 2);
+            } else if (e.key === 'e' || e.key === 'E') {
+                explosionMode = true;
+            } else if (e.key === 't' || e.key === 'T') {
+                ropeMode = true;
+                ropeFirstPoint = null;
+            }
+        });
+
+        // Mouse interaction
+        let dragging = null;
+        let offsetX = 0, offsetY = 0;
+        let lastDragged = null;
+        let skipStandUp = false;
+canvas.addEventListener('mousedown', e => {
+    const mx = e.clientX, my = e.clientY;
+    if (explosionMode) {
+        // Explosion: apply velocity to all points away from click
+        for (let p of points) {
+            let dx = p.x - mx;
+            let dy = p.y - my;
+            let d = Math.sqrt(dx * dx + dy * dy) + 1e-6;
+            // Even stronger force for flying effect
+            let force = 2000 / (d + 10); // much higher multiplier
+            let vx = (dx / d) * force * (1 + Math.random() * 0.4);
+            let vy = (dy / d) * force * (1 + Math.random() * 0.4);
+            p.oldx = p.x - vx;
+            p.oldy = p.y - vy;
+        }
+        // Start explosion effect
+        explosionEffect = {x: mx, y: my, r: 30, alpha: 0.7};
+        explosionMode = false;
+        skipStandUp = true;
+        return;
+    }
+            if (ropeMode) {
+                // Rope mode: select two points to connect, or connect to background
+                for (let i = points.length - 1; i >= 0; i--) {
+                    let p = points[i];
+                    if (dist({x: mx, y: my}, p) < 15) {
+                        if (!ropeFirstPoint) {
+                            ropeFirstPoint = p;
+                        } else if (ropeFirstPoint !== p) {
+                            sticks.push(new Stick(ropeFirstPoint, p));
+                            ropeMode = false;
+                            ropeFirstPoint = null;
+                        }
+                        return;
+                    }
+                }
+                // If first point is selected and second click is not on a point, attach to background
+                if (ropeFirstPoint) {
+                    // Create a pinned background point at click location
+                    const bgPoint = new Point(mx, my, true);
+                    points.push(bgPoint);
+                    sticks.push(new Stick(ropeFirstPoint, bgPoint));
+                    ropeMode = false;
+                    ropeFirstPoint = null;
+                }
+                return;
+            }
+            // Always check from topmost ragdoll (last points first)
+            for (let i = points.length - 1; i >= 0; i--) {
+                let p = points[i];
+                if (dist({x: mx, y: my}, p) < 15) {
+                    dragging = p;
+                    lastDragged = p;
+                    offsetX = mx - p.x;
+                    offsetY = my - p.y;
+                    break;
+                }
+            }
+        });
+        canvas.addEventListener('mousemove', e => {
+            if (dragging) {
+                dragging.x = e.clientX - offsetX;
+                dragging.y = e.clientY - offsetY;
+            }
+        });
+        canvas.addEventListener('mouseup', () => {
+            dragging = null;
+        });
+
+        // Main loop
+
+        // Mark points that are in collision this frame
+        let pointsInCollision = new Set();
+        function resolveCollisions() {
+            pointsInCollision.clear();
+            const radius = 10;
+            for (let i = 0; i < points.length; i++) {
+                for (let j = i + 1; j < points.length; j++) {
+                    const p1 = points[i];
+                    const p2 = points[j];
+                    if (p1 === p2) continue;
+                    // Don't collide pinned points
+                    if (p1.pinned && p2.pinned) continue;
+                    let dx = p2.x - p1.x;
+                    let dy = p2.y - p1.y;
+                    let d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < radius * 2 && d > 0) {
+                        pointsInCollision.add(p1);
+                        pointsInCollision.add(p2);
+                        let overlap = (radius * 2 - d) / 2;
+                        let ox = (dx / d) * overlap;
+                        let oy = (dy / d) * overlap;
+                        if (!p1.pinned && !p2.pinned) {
+                            p1.x -= ox;
+                            p1.y -= oy;
+                            p2.x += ox;
+                            p2.y += oy;
+                        } else if (!p1.pinned) {
+                            p1.x -= ox * 2;
+                            p1.y -= oy * 2;
+                        } else if (!p2.pinned) {
+                            p2.x += ox * 2;
+                            p2.y += oy * 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        function update() {
+            for (let p of points) p.update();
+            resolveCollisions();
+            if (!skipStandUp) {
+                // Stand up logic: only if both feet are near the bottom
+                for (let ragdoll of ragdolls) {
+                    // feet are last two points in ragdoll.points
+                    let lFoot = ragdoll.points[ragdoll.points.length - 2];
+                    let rFoot = ragdoll.points[ragdoll.points.length - 1];
+                    let footThreshold = 12; // px from bottom
+                    let onGround = (lFoot.y > H - footThreshold) && (rFoot.y > H - footThreshold);
+                    if (onGround) {
+                        for (let i = 0; i < ragdoll.points.length - 2; i++) { // don't move feet
+                            let p = ragdoll.points[i];
+                            let rest = ragdoll.rest[i];
+                            // If not being dragged and not in collision, restore toward rest pose
+                            if (p !== dragging && !pointsInCollision.has(p)) {
+                                p.x += (rest.x - p.x) * 0.05;
+                                p.y += (rest.y - p.y) * 0.05;
+                            }
+                        }
+                        // Snap feet to bottom
+                        lFoot.y = H - 10;
+                        rFoot.y = H - 10;
+                    }
+                }
+            } else {
+                skipStandUp = false;
+            }
+            for (let i = 0; i < 5; i++) // constraint iterations
+                for (let s of sticks) s.update();
+        }
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+        // Draw explosion effect if active
+        if (explosionEffect) {
+            ctx.save();
+            ctx.globalAlpha = explosionEffect.alpha;
+            let grad = ctx.createRadialGradient(
+                explosionEffect.x, explosionEffect.y, 0,
+                explosionEffect.x, explosionEffect.y, explosionEffect.r
+            );
+            grad.addColorStop(0, 'rgba(255,255,100,1)');
+            grad.addColorStop(0.3, 'rgba(255,200,0,0.7)');
+            grad.addColorStop(1, 'rgba(255,100,0,0)');
+            ctx.beginPath();
+            ctx.arc(explosionEffect.x, explosionEffect.y, explosionEffect.r, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.restore();
+            // Animate effect
+            explosionEffect.r += 30;
+            explosionEffect.alpha *= 0.75;
+            if (explosionEffect.alpha < 0.05) explosionEffect = null;
+        }
+        for (let s of sticks) s.draw();
+        for (let p of points) p.draw();
+    }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

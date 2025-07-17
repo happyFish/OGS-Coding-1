@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doom2 - Raycasting Demo</title>
+  <style>
+    body { margin: 0; background: #222; overflow: hidden; }
+    canvas { display: block; margin: 0 auto; background: #111; }
+    #info { position: absolute; top: 10px; left: 10px; color: #fff; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="640" height="400"></canvas>
+  <div id="info">WASD/Arrows: Move, Mouse: Look, Click: Shoot</div>
+  <script>
+    // --- Config ---
+    // Maze generation (recursive backtracker)
+    function generateMaze(w, h) {
+      let maze = Array.from({length: h}, () => Array(w).fill(1));
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          let j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+      function carve(x, y) {
+        maze[y][x] = 0;
+        shuffle([[0,1],[1,0],[0,-1],[-1,0]]).forEach(([dx,dy]) => {
+          let nx = x+dx*2, ny = y+dy*2;
+          if (nx > 0 && ny > 0 && nx < w-1 && ny < h-1 && maze[ny][nx] === 1) {
+            maze[y+dy][x+dx] = 0;
+            carve(nx, ny);
+          }
+        });
+      }
+      carve(1,1);
+      return maze;
+    }
+
+    // Make a big maze (e.g. 51x51)
+    const mapW = 51, mapH = 51;
+    const map = generateMaze(mapW, mapH);
+    const tileSize = 64;
+    const FOV = Math.PI / 3;
+    const numRays = 160;
+    const maxDepth = 20;
+    const screenW = 640, screenH = 400;
+    const stripW = screenW / numRays;
+
+    // --- Player ---
+    let player = {
+      x: 1.5 * tileSize,
+      y: 1.5 * tileSize,
+      angle: 0,
+      speed: 0,
+      rot: 0,
+      moveSpeed: 2.5,
+      rotSpeed: 0.045,
+    };
+
+    // --- Input ---
+    const keys = {};
+    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+    document.addEventListener('mousemove', e => {
+      if (document.pointerLockElement === canvas) {
+        player.angle += e.movementX * 0.0025;
+      }
+    });
+    document.addEventListener('mousedown', e => {
+      if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
+      else shoot();
+    });
+
+    // --- Canvas ---
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    // --- Raycasting (with infinite wrapping) ---
+    function castRays() {
+      let rays = [];
+      let startAngle = player.angle - FOV/2;
+      for (let i = 0; i < numRays; i++) {
+        let rayAngle = startAngle + (i/numRays)*FOV;
+        let dist = 0, hit = false;
+        let sin = Math.sin(rayAngle), cos = Math.cos(rayAngle);
+        while (!hit && dist < maxDepth*tileSize) {
+          dist += 2;
+          let rx = player.x + cos*dist;
+          let ry = player.y + sin*dist;
+          // Wrap coordinates for infinite maze
+          let mx = ((Math.floor(rx/tileSize) % mapW) + mapW) % mapW;
+          let my = ((Math.floor(ry/tileSize) % mapH) + mapH) % mapH;
+          if (map[my][mx] > 0) hit = true;
+        }
+        // Remove fish-eye
+        dist *= Math.cos(rayAngle - player.angle);
+        rays.push({dist, rayAngle});
+      }
+      return rays;
+    }
+
+    // --- Drawing ---
+    function draw(rays) {
+      ctx.clearRect(0,0,screenW,screenH);
+      // Sky
+      ctx.fillStyle = '#444';
+      ctx.fillRect(0,0,screenW,screenH/2);
+      // Floor
+      ctx.fillStyle = '#222';
+      ctx.fillRect(0,screenH/2,screenW,screenH/2);
+      // Walls
+      for (let i = 0; i < rays.length; i++) {
+        let r = rays[i];
+        let h = Math.min(screenH, (tileSize*320)/r.dist);
+        let shade = Math.max(0, 200 - r.dist*0.2);
+        ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+        ctx.fillRect(i*stripW, (screenH-h)/2, stripW+1, h);
+      }
+      // Gun
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#888';
+      ctx.fillRect(screenW/2-30,screenH-80,60,40);
+      ctx.restore();
+      // Muzzle flash
+      if (gunFlash > 0) {
+        ctx.save();
+        ctx.globalAlpha = gunFlash/5;
+        ctx.fillStyle = '#ff0';
+        ctx.beginPath();
+        ctx.arc(screenW/2,screenH-80,30,0,2*Math.PI);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // --- Shooting ---
+    let gunFlash = 0;
+    function shoot() {
+      gunFlash = 5;
+      // (Add enemies and hit detection here for more features)
+    }
+
+    // --- Game Loop ---
+    function update() {
+      // Movement
+      let move = 0, strafe = 0;
+      if (keys['w'] || keys['arrowup']) move = 1;
+      if (keys['s'] || keys['arrowdown']) move = -1;
+      if (keys['a'] || keys['arrowleft']) strafe = -1;
+      if (keys['d'] || keys['arrowright']) strafe = 1;
+      let nx = player.x + Math.cos(player.angle)*move*player.moveSpeed + Math.cos(player.angle+Math.PI/2)*strafe*player.moveSpeed;
+      let ny = player.y + Math.sin(player.angle)*move*player.moveSpeed + Math.sin(player.angle+Math.PI/2)*strafe*player.moveSpeed;
+      // Wrap coordinates for infinite maze
+      let mx = ((Math.floor(nx/tileSize) % mapW) + mapW) % mapW;
+      let my = ((Math.floor(ny/tileSize) % mapH) + mapH) % mapH;
+      if (map[my][mx] === 0) {
+        player.x = nx;
+        player.y = ny;
+      }
+      // Gun flash
+      if (gunFlash > 0) gunFlash--;
+    }
+
+    function loop() {
+      update();
+      let rays = castRays();
+      draw(rays);
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
