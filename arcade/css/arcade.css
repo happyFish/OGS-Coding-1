@@ -1,3 +1,7 @@
+* {
+    box-sizing: border-box;
+}
+
 body {
     background-color: #222;
     background-image: url('https://as2.ftcdn.net/v2/jpg/08/65/94/69/1000_F_865946990_ZipFK7hztxjXEZFnoqnbiLW2lntjk5JR.jpg');
@@ -39,15 +43,16 @@ h1 {
     grid-template-columns: auto 1fr;
     height: 100%;
     width: 100%;
-    grid-template-rows: 150px 1fr;
+    grid-template-rows: auto 1fr;
 }
 
 iframe {
     display: none;
+    margin: 20px;
 }
 
 .machine iframe {
-    width: 100%;
+    width: calc(100% - 40px);
     height: 100%;
     border: none;
     box-shadow: 0 0 20px #f00, 0 0 40px #0ff inset;
@@ -62,7 +67,7 @@ iframe {
 
 .machine .machines {
     gap: 2px;
-    grid-template-columns: repeat(11, auto);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))
 }
 
 .machine .arcade-machine {
