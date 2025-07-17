@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Mortal Kombat - Basic Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 40px;
+            background: linear-gradient(to bottom, #222 60%, #900 100%);
+            color: #fff;
+        }
+
+        .arena {
+            width: 500px;
+            margin: 0 auto;
+            background: #222;
+            border-radius: 16px;
+            padding: 30px 0 20px 0;
+            box-shadow: 0 0 40px #000a;
+            position: relative;
+            border: 4px solid #900;
+        }
+
+        .fighters {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+
+        .fighter {
+            width: 120px;
+            text-align: center;
+            position: relative;
+        }
+
+        .sprite {
+            width: 80px;
+            height: 120px;
+            margin: 0 auto 10px auto;
+            background: #fff2;
+            border-radius: 8px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-size: 60px;
+            transition: transform 0.2s;
+            position: relative;
+            z-index: 1;
+        }
+
+        .blood {
+            position: absolute;
+            left: 50%;
+            bottom: 10px;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .fighter.hit .sprite {
+            animation: hit 0.2s;
+            box-shadow: 0 0 30px 10px #f00a;
+        }
+
+        @keyframes hit {
+            0% {
+                transform: translateX(0);
+            }
+
+            50% {
+                transform: translateX(-10px) scale(1.1);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        .health-bar {
+            width: 100px;
+            height: 16px;
+            background: #333;
+            border: 1px solid #888;
+            margin: 0 auto 5px auto;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .health {
+            height: 100%;
+            background: linear-gradient(90deg, #f44336 70%, #900 100%);
+            width: 100%;
+            transition: width 0.3s;
+        }
+
+        .label {
+            font-weight: bold;
+            margin-bottom: 4px;
+            letter-spacing: 2px;
+            font-size: 18px;
+        }
+
+        .controls {
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 30px;
+            font-size: 18px;
+            margin: 0 10px;
+            border-radius: 8px;
+            border: none;
+            background: #900;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: inherit;
+        }
+
+        button:disabled {
+            background: #888;
+            cursor: not-allowed;
+        }
+
+        #log {
+            margin-top: 20px;
+            min-height: 40px;
+            font-size: 18px;
+            color: #ffd700;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>MORTAL KOMBAT</h1>
+    <div class="arena">
+        <div class="fighters">
+            <div class="fighter" id="fighter1">
+                <div class="label">Scorpion</div>
+                <div class="health-bar">
+                    <div class="health" id="p1-health"></div>
+                </div>
+                <div class="sprite" id="p1-sprite">🦂</div>
+                <canvas class="blood" id="p1-blood"></canvas>
+                <span id="p1-hp"></span> HP
+            </div>
+            <div class="fighter" id="fighter2">
+                <div class="label">Sub-Zero</div>
+                <div class="health-bar">
+                    <div class="health" id="p2-health"></div>
+                </div>
+                <div class="sprite" id="p2-sprite">❄️</div>
+                <canvas class="blood" id="p2-blood"></canvas>
+                <span id="p2-hp"></span> HP
+            </div>
+        </div>
+        <div class="controls">
+            <button id="p1-attack">Scorpion Attack</button>
+            <button id="p2-attack" disabled>Sub-Zero Attack</button>
+            <button id="fatality" style="display:none;">FATALITY</button>
+        </div>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const p1 = { name: "Scorpion", hp: 50, maxHp: 50, minAtk: 7, maxAtk: 14, el: document.getElementById('fighter1'), blood: document.getElementById('p1-blood') };
+        const p2 = { name: "Sub-Zero", hp: 50, maxHp: 50, minAtk: 6, maxAtk: 13, el: document.getElementById('fighter2'), blood: document.getElementById('p2-blood') };
+        let turn = 1; // 1 = Scorpion, 2 = Sub-Zero
+        let fatalityReady = false;
+
+        function updateUI() {
+            document.getElementById('p1-hp').textContent = p1.hp;
+            document.getElementById('p2-hp').textContent = p2.hp;
+            document.getElementById('p1-health').style.width = (p1.hp / p1.maxHp * 100) + "%";
+            document.getElementById('p2-health').style.width = (p2.hp / p2.maxHp * 100) + "%";
+        }
+
+        function log(msg) {
+            document.getElementById('log').textContent = msg;
+        }
+
+        function drawBlood(canvas, amount = 60, splatter = true) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = 40;
+            canvas.height = 40;
+            ctx.clearRect(0, 0, 40, 40);
+            for (let i = 0; i < amount; i++) {
+                // Splatter: randomize angle and distance for more "spray"
+                let angle = Math.random() * 2 * Math.PI;
+                let radius = splatter ? Math.pow(Math.random(), 1.5) * 18 : Math.random() * 12;
+                let x = 20 + Math.cos(angle) * radius + (Math.random() - 0.5) * 6;
+                let y = 28 + Math.sin(angle) * radius * 0.7 + (Math.random() - 0.5) * 6;
+                let r = 5 + Math.random() * 12 * (splatter ? Math.random() : 0.5);
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, 2 * Math.PI);
+                ctx.fillStyle = i % 4 === 0 ? "#ff0000" : (i % 7 === 0 ? "#800" : "#b30000");
+                ctx.globalAlpha = 0.6 + Math.random() * 0.3;
+                ctx.fill();
+            }
+            // Drips
+            if (splatter) {
+                for (let i = 0; i < 8; i++) {
+                    ctx.beginPath();
+                    let dripX = 10 + Math.random() * 20;
+                    ctx.moveTo(dripX, 35);
+                    ctx.lineTo(dripX + Math.random() * 4 - 2, 40);
+                    ctx.lineWidth = 2 + Math.random() * 2;
+                    ctx.strokeStyle = "#b30000";
+                    ctx.globalAlpha = 0.7;
+                    ctx.stroke();
+                }
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function clearBlood(canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 40, 40);
+        }
+
+        function attack(attacker, defender, defenderEl, defenderBlood) {
+            const dmg = Math.floor(Math.random() * (attacker.maxAtk - attacker.minAtk + 1)) + attacker.minAtk;
+            defender.hp = Math.max(0, defender.hp - dmg);
+            defenderEl.classList.add('hit');
+            drawBlood(defenderBlood, 70, true); // Even more blood, splatter mode
+            setTimeout(() => {
+                defenderEl.classList.remove('hit');
+                clearBlood(defenderBlood);
+            }, 1200);
+            return dmg;
+        }
+
+        document.getElementById('p1-attack').onclick = function () {
+            if (p1.hp <= 0 || p2.hp <= 0 || turn !== 1) return;
+            const dmg = attack(p1, p2, p2.el, p2.blood);
+            log(`Scorpion attacks Sub-Zero for ${dmg} damage! BLOOD SPLATTERS EVERYWHERE!`);
+            updateUI();
+            if (p2.hp <= 0) {
+                log("Finish Him! Press FATALITY! SO MUCH BLOOD!");
+                document.getElementById('fatality').style.display = "";
+                this.disabled = true;
+                document.getElementById('p2-attack').disabled = true;
+                fatalityReady = "scorpion";
+                return;
+            }
+            turn = 2;
+            this.disabled = true;
+            document.getElementById('p2-attack').disabled = false;
+        };
+
+        document.getElementById('p2-attack').onclick = function () {
+            if (p1.hp <= 0 || p2.hp <= 0 || turn !== 2) return;
+            const dmg = attack(p2, p1, p1.el, p1.blood);
+            log(`Sub-Zero attacks Scorpion for ${dmg} damage! BLOOD SPLATTERS EVERYWHERE!`);
+            updateUI();
+            if (p1.hp <= 0) {
+                log("Finish Him! Press FATALITY! SO MUCH BLOOD!");
+                document.getElementById('fatality').style.display = "";
+                this.disabled = true;
+                document.getElementById('p1-attack').disabled = true;
+                fatalityReady = "subzero";
+                return;
+            }
+            turn = 1;
+            this.disabled = true;
+            document.getElementById('p1-attack').disabled = false;
+        };
+
+        document.getElementById('fatality').onclick = function () {
+            if (!fatalityReady) return;
+            if (fatalityReady === "scorpion") {
+                log("SCORPION WINS! FATALITY! 🔥 BLOOD EXPLODES EVERYWHERE!");
+                document.getElementById('p2-sprite').textContent = "💀";
+                drawBlood(p2.blood, 160, true); // Massive splatter on fatality
+            } else if (fatalityReady === "subzero") {
+                log("SUB-ZERO WINS! FATALITY! 🧊 BLOOD EXPLODES EVERYWHERE!");
+                document.getElementById('p1-sprite').textContent = "💀";
+                drawBlood(p1.blood, 160, true);
+            }
+            this.disabled = true;
+        };
+
+        // Start game
+        updateUI();
+        log("Fight! Scorpion goes first.");
+    </script>
+</body>
+
+</html>
