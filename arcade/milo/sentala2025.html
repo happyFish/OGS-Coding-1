@@ -94,6 +94,9 @@
 </head>
 
 <body>
+    <audio loop id="bg-music">
+        <source src="../audio/akaza.mp3">
+    </audio>
     <div id="opening">
         <h1>Berserkers 2D</h1>
         <button id="playBtn">Play</button>
@@ -121,6 +124,7 @@
         const playBtn = document.getElementById('playBtn');
         const controlsBtn = document.getElementById('controlsBtn');
         const info = document.getElementById('info');
+        const audio = document.getElementById('bg-music');
         const restartMsg = document.getElementById('restartMsg');
 
         const canvas = document.getElementById('game');
@@ -141,6 +145,7 @@
             opening.style.display = 'none';
             info.style.display = '';
             canvas.style.display = '';
+            audio.play();
             // Start the game here if you have a start function
             game.start();
         };

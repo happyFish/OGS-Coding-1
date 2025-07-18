@@ -58,9 +58,9 @@ class CombatSystem {
             if (attacker.specialAttacking) damage = 5;
 
             if (defender.blocking) {
-                defender.takeDamage(damage / 2);
+                defender.health -= damage / 2;
             } else {
-                defender.takeDamage(damage);
+                defender.health -= damage;
             }
 
             attacker.attacking = false;
