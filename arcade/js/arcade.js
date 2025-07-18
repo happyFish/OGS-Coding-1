@@ -11,6 +11,13 @@ class Arcade {
 
     init() {
         this.createMachines();
+
+        document.querySelector('h1').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.arcade-machine').forEach(m => m.classList.remove('active'));
+            this.iframe.src = '';
+            this.container.classList.remove('machine');
+        });
     }
 
     loadMachine(name) {

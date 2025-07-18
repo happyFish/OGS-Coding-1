@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nom Nom Grow - Eating Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        #gameContainer {
+            position: relative;
+            border: 5px solid #2d3436;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            background: #00b894;
+        }
+        
+        canvas {
+            display: block;
+            border-radius: 10px;
+            background: linear-gradient(45deg, #00cec9, #00b894);
+        }
+        
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            color: white;
+            font-size: 14px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            text-align: center;
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #fdcb6e;
+            display: none;
+            z-index: 200;
+        }
+        
+        button {
+            background: #e17055;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            background: #d63031;
+            transform: translateY(-2px);
+        }
+        
+        .size-indicator {
+            position: absolute;
+            top: 60px;
+            left: 15px;
+            color: white;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        
+        .growth-bar {
+            width: 200px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        
+        .growth-fill {
+            height: 100%;
+            background: linear-gradient(to right, #e17055, #fdcb6e);
+            border-radius: 5px;
+            transition: width 0.3s;
+        }
+        
+        @keyframes eatEffect {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .eat-animation {
+            animation: eatEffect 0.2s;
+        }
+        
+        @keyframes foodSpawn {
+            0% { transform: scale(0) rotate(0deg); opacity: 0; }
+            100% { transform: scale(1) rotate(360deg); opacity: 1; }
+        }
+        
+        .food-spawn {
+            animation: foodSpawn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+        
+        <div id="ui">
+            <div>🍕 Score: <span id="score">0</span></div>
+            <div>🍎 Food Eaten: <span id="foodCount">0</span></div>
+        </div>
+        
+        <div class="size-indicator">
+            <div>📏 Size: <span id="sizeDisplay">Small</span></div>
+            <div class="growth-bar">
+                <div class="growth-fill" id="growthBar" style="width: 10%"></div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            Use WASD or Arrow Keys to move and eat food!<br>
+            Eat everything in sight to grow bigger! 🍔
+        </div>
+        
+        <div id="gameOver">
+            <h2>🏆 Game Complete! 🏆</h2>
+            <div>You ate <span id="finalFoodCount">0</span> food items!</div>
+            <div>Final Score: <span id="finalScore">0</span></div>
+            <div>Maximum Size Reached!</div>
+            <button onclick="resetGame()">🔄 Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameState = {
+            player: {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                size: 20,
+                maxSize: 200,
+                speed: 3,
+                color: '#e84393',
+                foodEaten: 0,
+                score: 0
+            },
+            foods: [],
+            people: [],
+            buildings: [],
+            maxFoods: 30,
+            gameRunning: true,
+            cityMode: false,
+            keys: {},
+            sizeThresholds: [
+                { size: 20, name: 'Tiny', speed: 4 },
+                { size: 35, name: 'Small', speed: 3.5 },
+                { size: 50, name: 'Medium', speed: 3 },
+                { size: 75, name: 'Large', speed: 2.5 },
+                { size: 100, name: 'Big', speed: 2 },
+                { size: 130, name: 'Huge', speed: 1.5 },
+                { size: 160, name: 'Giant', speed: 1.2 },
+                { size: 190, name: 'Massive', speed: 1 },
+                { size: 200, name: 'ENORMOUS', speed: 0.8 }
+            ]
+        };
+        
+        // Food types with different properties
+        const foodTypes = [
+            { emoji: '🍎', color: '#e74c3c', points: 10, growth: 1 },
+            { emoji: '🍌', color: '#f1c40f', points: 15, growth: 1.5 },
+            { emoji: '🍕', color: '#e67e22', points: 25, growth: 2 },
+            { emoji: '🍔', color: '#8b4513', points: 30, growth: 2.5 },
+            { emoji: '🍰', color: '#e91e63', points: 35, growth: 3 },
+            { emoji: '🍖', color: '#795548', points: 40, growth: 3.5 },
+            { emoji: '🍗', color: '#ff8a65', points: 45, growth: 4 },
+            { emoji: '🎂', color: '#f06292', points: 50, growth: 5 }
+        ];
+        
+        // Input handling
+        document.addEventListener('keydown', (e) => {
+            gameState.keys[e.key.toLowerCase()] = true;
+            
+            // Also handle arrow keys
+            if (e.key === 'ArrowUp') gameState.keys['w'] = true;
+            if (e.key === 'ArrowDown') gameState.keys['s'] = true;
+            if (e.key === 'ArrowLeft') gameState.keys['a'] = true;
+            if (e.key === 'ArrowRight') gameState.keys['d'] = true;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            gameState.keys[e.key.toLowerCase()] = false;
+            
+            // Also handle arrow keys
+            if (e.key === 'ArrowUp') gameState.keys['w'] = false;
+            if (e.key === 'ArrowDown') gameState.keys['s'] = false;
+            if (e.key === 'ArrowLeft') gameState.keys['a'] = false;
+            if (e.key === 'ArrowRight') gameState.keys['d'] = false;
+        });
+        
+        // Create food item
+        function createFood() {
+            const margin = 50;
+            const food = {
+                x: Math.random() * (canvas.width - margin * 2) + margin,
+                y: Math.random() * (canvas.height - margin * 2) + margin,
+                size: Math.random() * 15 + 10,
+                type: foodTypes[Math.floor(Math.random() * foodTypes.length)],
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.1,
+                pulsePhase: Math.random() * Math.PI * 2,
+                spawned: false
+            };
+            
+            // Make sure food doesn't spawn too close to player
+            const distance = Math.sqrt(
+                Math.pow(food.x - gameState.player.x, 2) + 
+                Math.pow(food.y - gameState.player.y, 2)
+            );
+            
+            if (distance > gameState.player.size + 100) {
+                return food;
+            }
+            
+            return createFood(); // Try again if too close
+        }
+        
+        // Spawn initial foods
+        function spawnFoods() {
+            while (gameState.foods.length < gameState.maxFoods) {
+                gameState.foods.push(createFood());
+            }
+        }
+        
+        // Update player
+        function updatePlayer() {
+            if (!gameState.gameRunning) return;
+            
+            const player = gameState.player;
+            let moved = false;
+            
+            // Handle movement
+            if (gameState.keys['w'] || gameState.keys['arrowup']) {
+                player.y -= player.speed;
+                moved = true;
+            }
+            if (gameState.keys['s'] || gameState.keys['arrowdown']) {
+                player.y += player.speed;
+                moved = true;
+            }
+            if (gameState.keys['a'] || gameState.keys['arrowleft']) {
+                player.x -= player.speed;
+                moved = true;
+            }
+            if (gameState.keys['d'] || gameState.keys['arrowright']) {
+                player.x += player.speed;
+                moved = true;
+            }
+            
+            // Keep player in bounds
+            const radius = player.size / 2;
+            player.x = Math.max(radius, Math.min(canvas.width - radius, player.x));
+            player.y = Math.max(radius, Math.min(canvas.height - radius, player.y));
+            
+            if (gameState.cityMode) {
+                // City mode - eat people and destroy buildings
+                checkPeopleCollision();
+                checkBuildingCollision();
+            } else {
+                // Normal mode - eat food
+                checkFoodCollision();
+            }
+            
+            // Update size category and speed
+            updatePlayerSize();
+        }
+        
+        // Check food collision (normal mode)
+        function checkFoodCollision() {
+            for (let i = gameState.foods.length - 1; i >= 0; i--) {
+                const food = gameState.foods[i];
+                const distance = Math.sqrt(
+                    Math.pow(food.x - gameState.player.x, 2) + 
+                    Math.pow(food.y - gameState.player.y, 2)
+                );
+                
+                if (distance < (gameState.player.size / 2) + (food.size / 2)) {
+                    // Eat the food!
+                    eatFood(food, i);
+                }
+            }
+        }
+        
+        // Check people collision (city mode)
+        function checkPeopleCollision() {
+            for (let i = gameState.people.length - 1; i >= 0; i--) {
+                const person = gameState.people[i];
+                const distance = Math.sqrt(
+                    Math.pow(person.x - gameState.player.x, 2) + 
+                    Math.pow(person.y - gameState.player.y, 2)
+                );
+                
+                if (distance < (gameState.player.size / 2) + 10) {
+                    // Eat the person!
+                    eatPerson(person, i);
+                }
+            }
+        }
+        
+        // Check building collision (city mode)
+        function checkBuildingCollision() {
+            for (let i = gameState.buildings.length - 1; i >= 0; i--) {
+                const building = gameState.buildings[i];
+                
+                if (gameState.player.x + gameState.player.size/2 > building.x &&
+                    gameState.player.x - gameState.player.size/2 < building.x + building.width &&
+                    gameState.player.y + gameState.player.size/2 > building.y &&
+                    gameState.player.y - gameState.player.size/2 < building.y + building.height) {
+                    
+                    // Destroy building!
+                    destroyBuilding(building, i);
+                }
+            }
+        }
+        
+        // Eat food function
+        function eatFood(food, index) {
+            const player = gameState.player;
+            
+            // Add to score and growth
+            player.score += food.type.points;
+            player.foodEaten++;
+            
+            // Grow the player
+            const growthAmount = food.type.growth;
+            if (player.size < player.maxSize) {
+                player.size = Math.min(player.maxSize, player.size + growthAmount);
+            }
+            
+            // Remove the food
+            gameState.foods.splice(index, 1);
+            
+            // Add eating effect
+            canvas.classList.add('eat-animation');
+            setTimeout(() => canvas.classList.remove('eat-animation'), 200);
+            
+            // Play eating sound (simple tone)
+            playEatSound();
+            
+            // Spawn new food
+            if (gameState.foods.length < gameState.maxFoods) {
+                gameState.foods.push(createFood());
+            }
+            
+            // Check win condition
+            if (player.size >= player.maxSize) {
+                gameWin();
+            }
+        }
+        
+        // Update player size category and speed
+        function updatePlayerSize() {
+            const player = gameState.player;
+            
+            for (let i = gameState.sizeThresholds.length - 1; i >= 0; i--) {
+                const threshold = gameState.sizeThresholds[i];
+                if (player.size >= threshold.size) {
+                    player.speed = threshold.speed;
+                    break;
+                }
+            }
+        }
+        
+        // Get current size name
+        function getCurrentSizeName() {
+            const player = gameState.player;
+            
+            for (let i = gameState.sizeThresholds.length - 1; i >= 0; i--) {
+                const threshold = gameState.sizeThresholds[i];
+                if (player.size >= threshold.size) {
+                    return threshold.name;
+                }
+            }
+            
+            return 'Tiny';
+        }
+        
+        // Play eating sound
+        function playEatSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(400 + Math.random() * 200, audioContext.currentTime);
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.2);
+            } catch (e) {
+                // Audio not supported
+            }
+        }
+        
+        // Start city rampage mode
+        function startCityMode() {
+            gameState.cityMode = true;
+            gameState.gameRunning = true;
+            gameState.player.size = 150; // Start as a giant in the city
+            gameState.player.speed = 2;
+            gameState.player.color = '#8B0000'; // Dark red monster color
+            gameState.player.x = canvas.width / 2;
+            gameState.player.y = canvas.height - 100;
+            
+            // Clear foods and create city
+            gameState.foods = [];
+            createCity();
+            spawnPeople();
+            
+            // Hide game over screen
+            document.getElementById('gameOver').style.display = 'none';
+            
+            // Update UI for city mode
+            document.getElementById('controls').innerHTML = 
+                'CITY RAMPAGE MODE! Eat people and destroy buildings! 🏙️👹<br>' +
+                'Use WASD or Arrow Keys to move your giant monster!';
+        }
+        
+        // Create city with buildings
+        function createCity() {
+            gameState.buildings = [];
+            
+            // Create random buildings
+            for (let i = 0; i < 15; i++) {
+                const building = {
+                    x: Math.random() * (canvas.width - 80),
+                    y: canvas.height - Math.random() * 300 - 50,
+                    width: 40 + Math.random() * 40,
+                    height: 50 + Math.random() * 200,
+                    color: `hsl(${Math.random() * 60 + 200}, 50%, ${30 + Math.random() * 30}%)`,
+                    destroyed: false
+                };
+                
+                // Make sure building reaches ground
+                building.height = canvas.height - building.y;
+                gameState.buildings.push(building);
+            }
+        }
+        
+        // Spawn people in the city
+        function spawnPeople() {
+            gameState.people = [];
+            
+            for (let i = 0; i < 25; i++) {
+                createPerson();
+            }
+        }
+        
+        // Create a single person
+        function createPerson() {
+            const person = {
+                x: Math.random() * canvas.width,
+                y: canvas.height - 20 - Math.random() * 50,
+                vx: (Math.random() - 0.5) * 3,
+                vy: 0,
+                size: 8,
+                color: `hsl(${Math.random() * 60 + 20}, 70%, 60%)`,
+                panicking: false,
+                panicDirection: Math.random() * Math.PI * 2
+            };
+            
+            gameState.people.push(person);
+        }
+        
+        // Update people movement (they run away from monster)
+        function updatePeople() {
+            gameState.people.forEach(person => {
+                // Calculate distance to monster
+                const distance = Math.sqrt(
+                    Math.pow(person.x - gameState.player.x, 2) + 
+                    Math.pow(person.y - gameState.player.y, 2)
+                );
+                
+                if (distance < 200) {
+                    // Person panics and runs away
+                    person.panicking = true;
+                    const angle = Math.atan2(person.y - gameState.player.y, person.x - gameState.player.x);
+                    person.vx = Math.cos(angle) * 4;
+                } else {
+                    // Random movement
+                    person.vx += (Math.random() - 0.5) * 0.5;
+                    person.vx *= 0.9; // Friction
+                }
+                
+                // Update position
+                person.x += person.vx;
+                
+                // Keep in bounds
+                person.x = Math.max(0, Math.min(canvas.width, person.x));
+            });
+        }
+        
+        // Eat person function
+        function eatPerson(person, index) {
+            gameState.player.score += 100;
+            gameState.player.foodEaten++;
+            
+            // Remove person
+            gameState.people.splice(index, 1);
+            
+            // Spawn new person
+            createPerson();
+            
+            // Play eating sound
+            playEatSound();
+            
+            // Screen shake effect
+            canvas.style.transform = 'translate(' + (Math.random() * 6 - 3) + 'px, ' + (Math.random() * 6 - 3) + 'px)';
+            setTimeout(() => canvas.style.transform = 'translate(0, 0)', 100);
+        }
+        
+        // Destroy building function
+        function destroyBuilding(building, index) {
+            gameState.player.score += 200;
+            
+            // Create destruction effect
+            building.destroyed = true;
+            building.color = '#FF4500';
+            
+            // Remove building after destruction animation
+            setTimeout(() => {
+                gameState.buildings.splice(index, 1);
+            }, 500);
+            
+            // Play destruction sound
+            playDestructionSound();
+            
+            // Screen shake effect
+            canvas.style.transform = 'translate(' + (Math.random() * 10 - 5) + 'px, ' + (Math.random() * 10 - 5) + 'px)';
+            setTimeout(() => canvas.style.transform = 'translate(0, 0)', 200);
+        }
+        
+        // Play destruction sound
+        function playDestructionSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(100, audioContext.currentTime);
+                oscillator.type = 'sawtooth';
+                
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.8);
+            } catch (e) {
+                // Audio not supported
+            }
+        }
+        
+        // Game win condition - transition to city mode
+        function gameWin() {
+            gameState.gameRunning = false;
+            
+            // Transition to city mode after a brief pause
+            setTimeout(() => {
+                startCityMode();
+            }, 2000);
+            
+            // Show transition message
+            document.getElementById('gameOver').innerHTML = `
+                <h2>🏆 MAXIMUM SIZE REACHED! 🏆</h2>
+                <div>You are now ENORMOUS!</div>
+                <div>Transitioning to CITY RAMPAGE MODE...</div>
+                <div style="font-size: 48px; margin: 20px;">🏙️👹</div>
+            `;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        // Draw player
+        function drawPlayer() {
+            const player = gameState.player;
+            
+            // Draw shadow
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.beginPath();
+            ctx.ellipse(player.x + 5, player.y + 5, player.size / 2, player.size / 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // Draw main body
+            ctx.save();
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add gradient effect
+            const gradient = ctx.createRadialGradient(
+                player.x - player.size / 4, player.y - player.size / 4, 0,
+                player.x, player.y, player.size / 2
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Draw eyes
+            const eyeSize = Math.max(3, player.size / 10);
+            const eyeOffset = player.size / 4;
+            
+            if (gameState.cityMode) {
+                // Monster eyes - red and menacing
+                ctx.fillStyle = '#FF0000';
+                ctx.beginPath();
+                ctx.arc(player.x - eyeOffset / 2, player.y - eyeOffset / 2, eyeSize * 1.5, 0, Math.PI * 2);
+                ctx.arc(player.x + eyeOffset / 2, player.y - eyeOffset / 2, eyeSize * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(player.x - eyeOffset / 2, player.y - eyeOffset / 2, eyeSize, 0, Math.PI * 2);
+                ctx.arc(player.x + eyeOffset / 2, player.y - eyeOffset / 2, eyeSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Monster teeth
+                ctx.fillStyle = 'white';
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i / 6) * Math.PI + Math.PI * 0.25;
+                    const toothX = player.x + Math.cos(angle) * (player.size / 3);
+                    const toothY = player.y + Math.sin(angle) * (player.size / 3);
+                    ctx.beginPath();
+                    ctx.moveTo(toothX, toothY);
+                    ctx.lineTo(toothX + Math.cos(angle) * 10, toothY + Math.sin(angle) * 10);
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = 'white';
+                    ctx.stroke();
+                }
+            } else {
+                // Normal cute eyes
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(player.x - eyeOffset / 2, player.y - eyeOffset / 2, eyeSize, 0, Math.PI * 2);
+                ctx.arc(player.x + eyeOffset / 2, player.y - eyeOffset / 2, eyeSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(player.x - eyeOffset / 2, player.y - eyeOffset / 2, eyeSize / 2, 0, Math.PI * 2);
+                ctx.arc(player.x + eyeOffset / 2, player.y - eyeOffset / 2, eyeSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw mouth
+                if (player.size > 30) {
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(player.x, player.y + eyeOffset / 3, player.size / 6, 0, Math.PI);
+                    ctx.stroke();
+                }
+            }
+            
+            ctx.restore();
+        }
+        
+        // Draw people (city mode)
+        function drawPeople() {
+            gameState.people.forEach(person => {
+                ctx.save();
+                
+                // Draw shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.beginPath();
+                ctx.ellipse(person.x + 1, person.y + 1, person.size / 2, person.size / 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw person body
+                ctx.fillStyle = person.color;
+                ctx.beginPath();
+                ctx.arc(person.x, person.y - person.size, person.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw head
+                ctx.fillStyle = '#FFDBAC';
+                ctx.beginPath();
+                ctx.arc(person.x, person.y - person.size * 1.5, person.size / 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Add panic effect
+                if (person.panicking) {
+                    ctx.strokeStyle = '#FF0000';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(person.x, person.y - person.size, person.size, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // Exclamation mark
+                    ctx.fillStyle = '#FF0000';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('!', person.x, person.y - person.size * 2);
+                }
+                
+                ctx.restore();
+            });
+        }
+        
+        // Draw buildings (city mode)
+        function drawBuildings() {
+            gameState.buildings.forEach(building => {
+                ctx.save();
+                
+                if (building.destroyed) {
+                    // Draw destruction effect
+                    ctx.fillStyle = '#FF4500';
+                    ctx.globalAlpha = 0.7;
+                } else {
+                    ctx.fillStyle = building.color;
+                }
+                
+                // Draw building
+                ctx.fillRect(building.x, building.y, building.width, building.height);
+                
+                // Draw windows if not destroyed
+                if (!building.destroyed) {
+                    ctx.fillStyle = '#FFFF00';
+                    for (let i = 0; i < building.width - 10; i += 15) {
+                        for (let j = 20; j < building.height - 20; j += 25) {
+                            if (Math.random() > 0.3) { // Some windows are lit
+                                ctx.fillRect(building.x + i + 5, building.y + j, 8, 12);
+                            }
+                        }
+                    }
+                }
+                
+                ctx.restore();
+            });
+        }
+        
+        // Draw food
+        function drawFood(food) {
+            const time = Date.now() * 0.01;
+            const pulse = Math.sin(food.pulsePhase + time * 0.005) * 0.1 + 1;
+            const currentSize = food.size * pulse;
+            
+            // Update rotation
+            food.rotation += food.rotationSpeed;
+            
+            ctx.save();
+            ctx.translate(food.x, food.y);
+            ctx.rotate(food.rotation);
+            
+            // Draw shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.beginPath();
+            ctx.arc(2, 2, currentSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw food item
+            ctx.fillStyle = food.type.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, currentSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add shine effect
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.beginPath();
+            ctx.arc(-currentSize / 6, -currentSize / 6, currentSize / 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw emoji (if browser supports it)
+            ctx.font = `${Math.max(12, currentSize * 0.8)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'white';
+            ctx.fillText(food.type.emoji, 0, 0);
+            
+            ctx.restore();
+        }
+        
+        // Draw background
+        function drawBackground() {
+            if (gameState.cityMode) {
+                // City background
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#1a1a2e');
+                gradient.addColorStop(0.3, '#16213e');
+                gradient.addColorStop(1, '#0f0f23');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw stars
+                ctx.fillStyle = 'white';
+                for (let i = 0; i < 50; i++) {
+                    const x = (i * 127) % canvas.width;
+                    const y = (i * 91) % (canvas.height / 2);
+                    ctx.beginPath();
+                    ctx.arc(x, y, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Draw ground/street
+                ctx.fillStyle = '#333';
+                ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+                
+                // Street lines
+                ctx.strokeStyle = '#FFF';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([20, 20]);
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height - 15);
+                ctx.lineTo(canvas.width, canvas.height - 15);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else {
+                // Normal eating game background
+                const time = Date.now() * 0.001;
+                
+                ctx.save();
+                ctx.fillStyle = '#00b894';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw moving dots pattern
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                for (let x = 0; x < canvas.width; x += 60) {
+                    for (let y = 0; y < canvas.height; y += 60) {
+                        const offsetX = Math.sin(time + x * 0.01) * 10;
+                        const offsetY = Math.cos(time + y * 0.01) * 10;
+                        ctx.beginPath();
+                        ctx.arc(x + offsetX, y + offsetY, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+                
+                ctx.restore();
+            }
+        }
+        
+        // Update UI
+        function updateUI() {
+            document.getElementById('score').textContent = gameState.player.score;
+            
+            if (gameState.cityMode) {
+                document.getElementById('foodCount').textContent = gameState.player.foodEaten + ' victims';
+                document.getElementById('sizeDisplay').textContent = 'MONSTER';
+                document.getElementById('growthBar').style.width = '100%';
+            } else {
+                document.getElementById('foodCount').textContent = gameState.player.foodEaten;
+                document.getElementById('sizeDisplay').textContent = getCurrentSizeName();
+                
+                // Update growth bar
+                const growthPercentage = (gameState.player.size / gameState.player.maxSize) * 100;
+                document.getElementById('growthBar').style.width = growthPercentage + '%';
+            }
+        }
+        
+        // Reset game
+        function resetGame() {
+            gameState = {
+                player: {
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    size: 20,
+                    maxSize: 200,
+                    speed: 3,
+                    color: '#e84393',
+                    foodEaten: 0,
+                    score: 0
+                },
+                foods: [],
+                people: [],
+                buildings: [],
+                maxFoods: 30,
+                gameRunning: true,
+                cityMode: false,
+                keys: {},
+                sizeThresholds: [
+                    { size: 20, name: 'Tiny', speed: 4 },
+                    { size: 35, name: 'Small', speed: 3.5 },
+                    { size: 50, name: 'Medium', speed: 3 },
+                    { size: 75, name: 'Large', speed: 2.5 },
+                    { size: 100, name: 'Big', speed: 2 },
+                    { size: 130, name: 'Huge', speed: 1.5 },
+                    { size: 160, name: 'Giant', speed: 1.2 },
+                    { size: 190, name: 'Massive', speed: 1 },
+                    { size: 200, name: 'ENORMOUS', speed: 0.8 }
+                ]
+            };
+            
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('controls').innerHTML = 
+                'Use WASD or Arrow Keys to move and eat food!<br>' +
+                'Eat everything in sight to grow bigger! 🍔';
+            
+            spawnFoods();
+            updateUI();
+        }
+        
+        // Main game loop
+        function gameLoop() {
+            if (gameState.gameRunning) {
+                updatePlayer();
+                
+                if (gameState.cityMode) {
+                    updatePeople();
+                }
+            }
+            
+            // Render everything
+            drawBackground();
+            
+            if (gameState.cityMode) {
+                // City mode rendering
+                drawBuildings();
+                drawPeople();
+            } else {
+                // Normal mode rendering
+                gameState.foods.forEach(food => drawFood(food));
+            }
+            
+            // Draw player
+            drawPlayer();
+            
+            // Update UI
+            updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Initialize game
+        function initGame() {
+            spawnFoods();
+            updateUI();
+            gameLoop();
+        }
+        
+        // Start the game
+        initGame();
+    </script>
+</body>
+</html>
