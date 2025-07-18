@@ -10,8 +10,11 @@
             margin: 0;
             padding: 0;
             background: linear-gradient(to bottom, #1a0000, #4d0000, #800000);
-            font-family: 'Arial Black', sans-serif;
+            font-family: 'Courier New', monospace;
             overflow: hidden;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
         }
 
         #gameContainer {
@@ -25,6 +28,10 @@
         canvas {
             background: transparent;
             display: block;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
         }
 
         .ui {
@@ -96,9 +103,9 @@
             left: 20px;
             color: #ffff00;
             background: rgba(0, 0, 0, 0.9);
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 14px;
+            padding: 10px;
+            border-radius: 0px;
+            font-size: 8px;
             line-height: 1.4;
             border: 2px solid #ffff00;
         }
@@ -110,13 +117,13 @@
             transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.95);
             color: #ff0000;
-            padding: 40px;
-            border-radius: 20px;
+            padding: 20px;
+            border-radius: 0px;
             text-align: center;
-            font-size: 32px;
+            font-size: 16px;
             display: none;
-            border: 4px solid #ff0000;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 1);
+            border: 3px solid #ff0000;
+            text-shadow: 1px 1px 0px rgba(0, 0, 0, 1);
         }
 
         .fatality-text {
@@ -211,6 +218,12 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+
+        // Disable image smoothing for pixel art
+        ctx.imageSmoothingEnabled = false;
+        ctx.webkitImageSmoothingEnabled = false;
+        ctx.mozImageSmoothingEnabled = false;
+        ctx.msImageSmoothingEnabled = false;
 
         // Game state
         let gameRunning = true;
@@ -745,93 +758,119 @@
             }
 
             drawCharacter() {
-                // Character body
-                ctx.fillStyle = this.stunned ? '#ff6666' : this.color;
+                // Pixel art drawing function
+                const drawPixelRect = (x, y, width, height, color) => {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(Math.floor(x), Math.floor(y), width, height);
+                };
 
-                // Animation offset
+                // Character body
                 const bobOffset = this.currentAnimation === 'walk' ? Math.sin(this.animationFrame) * 2 : 0;
-                const currentY = this.y + bobOffset;
+                const currentY = Math.floor(this.y + bobOffset);
+                const currentX = Math.floor(this.x);
 
                 // Body (different colors for Scorpion and Sub-Zero)
                 if (this.name === 'SCORPION') {
-                    ctx.fillStyle = this.stunned ? '#ff9999' : '#ffff00';
+                    // Scorpion - Yellow and Orange
+                    drawPixelRect(currentX + 15, currentY + 30, 30, 60, this.stunned ? '#ff9999' : '#ffdd00');
+                    // Belt/sash
+                    drawPixelRect(currentX + 12, currentY + 50, 36, 8, '#ff6600');
+                    // Chest armor
+                    drawPixelRect(currentX + 18, currentY + 32, 24, 16, '#ff8800');
                 } else {
-                    ctx.fillStyle = this.stunned ? '#9999ff' : '#0099ff';
+                    // Sub-Zero - Blue and Cyan
+                    drawPixelRect(currentX + 15, currentY + 30, 30, 60, this.stunned ? '#9999ff' : '#0088ff');
+                    // Belt/sash
+                    drawPixelRect(currentX + 12, currentY + 50, 36, 8, '#0044aa');
+                    // Chest armor
+                    drawPixelRect(currentX + 18, currentY + 32, 24, 16, '#00aaff');
                 }
-                ctx.fillRect(this.x + 15, currentY + 30, 30, 60);
 
                 // Head
-                ctx.fillStyle = this.stunned ? '#ffcccc' : '#ffddaa';
-                ctx.fillRect(this.x + 20, currentY, 20, 30);
+                drawPixelRect(currentX + 20, currentY, 20, 30, this.stunned ? '#ffcccc' : '#ffddaa');
+
+                // Mask/Hood
+                if (this.name === 'SCORPION') {
+                    drawPixelRect(currentX + 18, currentY + 2, 24, 20, '#ffdd00');
+                    // Eyes
+                    drawPixelRect(currentX + 22, currentY + 8, 4, 4, '#000000');
+                    drawPixelRect(currentX + 34, currentY + 8, 4, 4, '#000000');
+                    drawPixelRect(currentX + 23, currentY + 9, 2, 2, '#ff0000');
+                    drawPixelRect(currentX + 35, currentY + 9, 2, 2, '#ff0000');
+                } else {
+                    drawPixelRect(currentX + 18, currentY + 2, 24, 20, '#0088ff');
+                    // Eyes
+                    drawPixelRect(currentX + 22, currentY + 8, 4, 4, '#000000');
+                    drawPixelRect(currentX + 34, currentY + 8, 4, 4, '#000000');
+                    drawPixelRect(currentX + 23, currentY + 9, 2, 2, '#00ffff');
+                    drawPixelRect(currentX + 35, currentY + 9, 2, 2, '#00ffff');
+                }
 
                 // Arms
                 const armOffset = this.attacking ? 10 : 0;
-                ctx.fillStyle = this.stunned ? '#ff6666' : this.color;
-                ctx.fillRect(this.x + (this.facingRight ? 45 + armOffset : 0 - armOffset), currentY + 35, 15, 30);
-                ctx.fillRect(this.x + (this.facingRight ? 0 : 45), currentY + 35, 15, 30);
+                const armColor = this.name === 'SCORPION' ? '#ffaa00' : '#0066cc';
+                drawPixelRect(currentX + (this.facingRight ? 45 + armOffset : 0 - armOffset), currentY + 35, 15, 30, this.stunned ? '#ff6666' : armColor);
+                drawPixelRect(currentX + (this.facingRight ? 0 : 45), currentY + 35, 15, 30, this.stunned ? '#ff6666' : armColor);
+
+                // Gloves/Hands
+                const handColor = this.name === 'SCORPION' ? '#ff6600' : '#003388';
+                drawPixelRect(currentX + (this.facingRight ? 48 + armOffset : 0 - armOffset), currentY + 60, 12, 8, handColor);
+                drawPixelRect(currentX + (this.facingRight ? 0 : 48), currentY + 60, 12, 8, handColor);
 
                 // Legs
                 const legOffset = this.currentAnimation === 'walk' ? Math.sin(this.animationFrame * 2) * 5 : 0;
-                ctx.fillRect(this.x + 15, currentY + 90, 12, 30);
-                ctx.fillRect(this.x + 33, currentY + 90 + legOffset, 12, 30);
+                const legColor = this.name === 'SCORPION' ? '#ddaa00' : '#0077dd';
+                drawPixelRect(currentX + 15, currentY + 90, 12, 30, legColor);
+                drawPixelRect(currentX + 33, Math.floor(currentY + 90 + legOffset), 12, 30, legColor);
+
+                // Boots
+                const bootColor = this.name === 'SCORPION' ? '#aa5500' : '#002266';
+                drawPixelRect(currentX + 12, currentY + 115, 18, 8, bootColor);
+                drawPixelRect(currentX + 30, Math.floor(currentY + 115 + legOffset), 18, 8, bootColor);
 
                 // Special effects
                 if (this.currentAnimation === 'special') {
-                    this.drawSpecialEffect();
+                    this.drawPixelSpecialEffect();
                 }
 
                 // Health indicator
                 if (this.health < 30) {
-                    ctx.fillStyle = 'red';
-                    ctx.font = 'bold 14px Arial';
-                    ctx.fillText('DANGER!', this.x, this.y - 10);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.font = 'bold 14px Courier New';
+                    ctx.fillText('DANGER!', currentX, currentY - 10);
                 }
 
                 // Combo indicator
                 if (this.combo > 1) {
                     ctx.fillStyle = '#ffff00';
-                    ctx.font = 'bold 16px Arial';
-                    ctx.fillText(`${this.combo} HIT COMBO!`, this.x - 20, this.y - 30);
+                    ctx.font = 'bold 16px Courier New';
+                    ctx.fillText(`${this.combo} HIT COMBO!`, currentX - 20, currentY - 30);
                 }
 
                 // Fatality ready indicator
                 if (this.fatalityReady) {
                     ctx.fillStyle = '#ff0000';
-                    ctx.font = 'bold 12px Arial';
-                    ctx.fillText('FINISH HIM!', this.x - 10, this.y - 50);
-                }
-
-                // Debug: Show controls for Player 2 (Sub-Zero)
-                if (this.name === 'SUB-ZERO') {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '10px Arial';
-                    let debugY = this.y - 70;
-                    const { left, right, up, punch, kick, special } = this.controls;
-                    if (keys[left]) ctx.fillText('← pressed', this.x, debugY);
-                    if (keys[right]) ctx.fillText('→ pressed', this.x, debugY - 10);
-                    if (keys[up]) ctx.fillText('↑ pressed', this.x, debugY - 20);
-                    if (keys[punch]) ctx.fillText('1 pressed', this.x, debugY - 30);
-                    if (keys[kick]) ctx.fillText('2 pressed', this.x, debugY - 40);
-                    if (keys[special]) ctx.fillText('3 pressed', this.x, debugY - 50);
+                    ctx.font = 'bold 12px Courier New';
+                    ctx.fillText('FINISH HIM!', currentX - 10, currentY - 50);
                 }
 
                 // AI Debug: Show current AI action for bots
                 if (this.isBot) {
                     ctx.fillStyle = '#00ff00';
-                    ctx.font = 'bold 12px Arial';
-                    ctx.fillText(`AI: ${this.aiAction}`, this.x - 20, this.y - 70);
+                    ctx.font = 'bold 12px Courier New';
+                    ctx.fillText(`AI: ${this.aiAction}`, currentX - 20, currentY - 70);
 
                     if (this.aiCooldown > 0) {
                         ctx.fillStyle = '#ffff00';
-                        ctx.font = '10px Arial';
-                        ctx.fillText(`Cooldown: ${this.aiCooldown}`, this.x - 20, this.y - 55);
+                        ctx.font = '10px Courier New';
+                        ctx.fillText(`Cooldown: ${this.aiCooldown}`, currentX - 20, currentY - 55);
                     }
                 }
             }
 
             drawSpecialEffect() {
-                const centerX = this.x + this.width / 2;
-                const centerY = this.y + this.height / 2;
+                const centerX = Math.floor(this.x + this.width / 2);
+                const centerY = Math.floor(this.y + this.height / 2);
 
                 ctx.strokeStyle = this.color;
                 ctx.lineWidth = 3;
@@ -840,21 +879,43 @@
                 ctx.stroke();
             }
 
+            drawPixelSpecialEffect() {
+                const centerX = Math.floor(this.x + this.width / 2);
+                const centerY = Math.floor(this.y + this.height / 2);
+                const radius = 40 + Math.sin(Date.now() * 0.1) * 10;
+
+                // Create pixelated ring effect
+                const effectColor = this.name === 'SCORPION' ? '#ff6600' : '#00ccff';
+                ctx.fillStyle = effectColor;
+
+                // Draw pixelated circle using rectangles
+                for (let angle = 0; angle < Math.PI * 2; angle += 0.3) {
+                    const x = Math.floor(centerX + Math.cos(angle) * radius);
+                    const y = Math.floor(centerY + Math.sin(angle) * radius);
+                    ctx.fillRect(x - 2, y - 2, 4, 4);
+                }
+            }
+
             drawParticles() {
-                // Draw hit particles
+                // Draw hit particles with pixel art style
                 this.particles.forEach(particle => {
                     const alpha = particle.life / 30;
+                    const x = Math.floor(particle.x);
+                    const y = Math.floor(particle.y);
                     ctx.fillStyle = particle.color;
                     ctx.globalAlpha = alpha;
-                    ctx.fillRect(particle.x, particle.y, 4, 4);
+                    ctx.fillRect(x, y, 4, 4);
                 });
 
-                // Draw blood particles
+                // Draw blood particles with pixel art style
                 this.bloodParticles.forEach(particle => {
                     const alpha = particle.life / 60;
+                    const x = Math.floor(particle.x);
+                    const y = Math.floor(particle.y);
+                    const size = Math.floor(particle.size);
                     ctx.fillStyle = particle.color;
                     ctx.globalAlpha = alpha;
-                    ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+                    ctx.fillRect(x, y, size, size);
                 });
 
                 ctx.globalAlpha = 1;
@@ -972,31 +1033,55 @@
 
         function drawProjectiles() {
             projectiles.forEach(proj => {
+                const projX = Math.floor(proj.x);
+                const projY = Math.floor(proj.y);
+
                 if (proj.special === 'fire') {
-                    // Scorpion's fire projectile
+                    // Scorpion's pixelated fire projectile
                     ctx.fillStyle = '#ff6600';
-                    ctx.shadowColor = '#ff0000';
-                    ctx.shadowBlur = 15;
+                    ctx.fillRect(projX, projY, proj.width, proj.height);
+                    ctx.fillStyle = '#ff9900';
+                    ctx.fillRect(projX + 4, projY + 2, proj.width - 8, proj.height - 4);
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.fillRect(projX + 8, projY + 4, proj.width - 16, proj.height - 8);
+
+                    // Fire trail effect
+                    ctx.fillStyle = '#ff3300';
+                    for (let i = 0; i < 3; i++) {
+                        ctx.fillRect(projX - (i * 8), projY + 6, 4, 8);
+                    }
                 } else if (proj.special === 'ice') {
-                    // Sub-Zero's ice projectile
+                    // Sub-Zero's pixelated ice projectile
                     ctx.fillStyle = '#00ccff';
-                    ctx.shadowColor = '#0099ff';
-                    ctx.shadowBlur = 15;
+                    ctx.fillRect(projX, projY, proj.width, proj.height);
+                    ctx.fillStyle = '#66ddff';
+                    ctx.fillRect(projX + 4, projY + 2, proj.width - 8, proj.height - 4);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(projX + 8, projY + 4, proj.width - 16, proj.height - 8);
+
+                    // Ice crystals effect
+                    ctx.fillStyle = '#aaeeff';
+                    for (let i = 0; i < 3; i++) {
+                        ctx.fillRect(projX - (i * 6), projY + 4, 4, 4);
+                        ctx.fillRect(projX - (i * 6), projY + 12, 4, 4);
+                    }
                 } else {
                     ctx.fillStyle = proj.color;
-                    ctx.shadowColor = proj.color;
-                    ctx.shadowBlur = 10;
+                    ctx.fillRect(projX, projY, proj.width, proj.height);
                 }
-
-                ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
-                ctx.shadowBlur = 0;
             });
 
-            // Draw blood effects
+            // Draw pixelated blood effects
             bloodEffects.forEach((effect, index) => {
                 const alpha = effect.life / 120;
+                const effectX = Math.floor(effect.x);
+                const effectY = Math.floor(effect.y);
+
                 ctx.fillStyle = `rgba(139, 0, 0, ${alpha})`;
-                ctx.fillRect(effect.x - 5, effect.y - 5, 10, 10);
+                ctx.fillRect(effectX - 4, effectY - 4, 8, 8);
+                ctx.fillStyle = `rgba(200, 0, 0, ${alpha})`;
+                ctx.fillRect(effectX - 2, effectY - 2, 4, 4);
+
                 effect.life--;
                 if (effect.life <= 0) {
                     bloodEffects.splice(index, 1);
