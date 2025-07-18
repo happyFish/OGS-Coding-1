@@ -13,6 +13,12 @@ class Arcade {
     init() {
         this.createMachines();
 
+        this.speaker.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleSpeaker();
+        });
+
         document.querySelector('h1').addEventListener('click', (e) => {
             e.preventDefault();
             document.querySelectorAll('.arcade-machine').forEach(m => m.classList.remove('active'));
@@ -20,10 +26,6 @@ class Arcade {
             this.container.classList.remove('machine');
         });
 
-        this.speaker.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.toggleSpeaker();
-        });
     }
 
     toggleSpeaker() {
