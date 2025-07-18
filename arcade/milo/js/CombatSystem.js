@@ -3,6 +3,22 @@ class CombatSystem {
         this.particleSystem = particleSystem;
     }
 
+    // Add this function if not present:
+    explodePlayer(player) {
+        for (let i = 0; i < 120; i++) {
+            this.particleSystem.spawnParticles(
+                player.x + GAME_CONFIG.PLAYER_WIDTH / 2,
+                player.y + GAME_CONFIG.PLAYER_HEIGHT / 2,
+                {
+                    color: "#e33",
+                    count: 1,
+                    spread: 2 * Math.PI,
+                    speed: 4 + Math.random() * 4
+                }
+            );
+        }
+    }
+
     checkAttack(attacker, defender) {
         if (!attacker.attacking) return;
 

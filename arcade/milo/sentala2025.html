@@ -3,17 +3,17 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>2D Two Player Fighting Game</title>
+    <title>Berserkers 2D</title>
     <style>
         body {
             margin: 0;
-            background: #222;
+            background: #75bfd6;
         }
 
         canvas {
             display: block;
             margin: 0 auto;
-            background: #444;
+            background: #ada9a9;
         }
 
         #info {
@@ -22,12 +22,89 @@
             font-family: Arial;
             margin-top: 10px;
         }
+
+        #opening {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #5bcfbc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #opening h1 {
+            color: #000000;
+            font-size: 3em;
+            margin-bottom: 30px;
+            font-family: 'Arial Black', Arial, sans-serif;
+            letter-spacing: 2px;
+        }
+
+        #playBtn {
+            font-size: 1.5em;
+            padding: 16px 48px;
+            border: none;
+            border-radius: 8px;
+            background: #a020f0;
+            color: #ffffff;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            transition: background 0.2s;
+        }
+
+        #playBtn:hover {
+            background: #7d1bb8;
+        }
+
+        #controlsBtn {
+            font-size: 1.5em;
+            padding: 16px 48px;
+            border: none;
+            border-radius: 8px;
+            background: #f0a020;
+            color: #ffffff;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        #controlsBtn:hover {
+            background: #b88a1d;
+        }
+
+        #restartMsg {
+            display: none;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            text-align: center;
+            font-size: 2em;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            z-index: 20;
+        }
     </style>
 </head>
 
 <body>
-    <div id="info">Player 1: WASD + F (attack) | Player 2: Arrow Keys + '/' (attack)</div>
-    <canvas id="game" width="800" height="400"></canvas>
+    <div id="opening">
+        <h1>Berserkers 2D</h1>
+        <button id="playBtn">Play</button>
+        <button id="controlsBtn">Controls</button>
+    </div>
+    <div id="info" style="display:none;">Player 1: WASD + F (attack) | Player 2: Arrow Keys + '/' (attack)
+    </div>
+    <canvas id="game" width="800" height="400" style="display:none;"></canvas>
+    <div id="restartMsg">
+        Press Shift to play again
+    </div>
 
     <!-- Load all JavaScript files in dependency order -->
     <script src="js/config.js"></script>
@@ -40,8 +117,36 @@
 
     <!-- Start the game -->
     <script>
+        const opening = document.getElementById('opening');
+        const playBtn = document.getElementById('playBtn');
+        const controlsBtn = document.getElementById('controlsBtn');
+        const info = document.getElementById('info');
+        const restartMsg = document.getElementById('restartMsg');
+
         const canvas = document.getElementById('game');
         const game = new Game(canvas);
+        game.onEnd = () => {
+            restartMsg.style.display = 'block';
+            const restart = (e) => {
+                if (e.key === 'Shift') {
+                    game.init();
+                    restartMsg.style.display = 'none';
+                    game.start();
+                    window.removeEventListener('keydown', restart);
+                }
+            }
+            window.addEventListener('keydown', restart);
+        };
+        playBtn.onclick = () => {
+            opening.style.display = 'none';
+            info.style.display = '';
+            canvas.style.display = '';
+            // Start the game here if you have a start function
+            game.start();
+        };
+        controlsBtn.onclick = () => {
+            alert("Player 1: Move with WASD keys. Attack with F key.\nPlayer 2: Move with Arrow keys. Attack with '/' key.");
+        };
         game.start();
     </script>
 </body>
