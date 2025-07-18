@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>3D House and Forest</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xaee1a3);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 8, 40); // Start position
+        let cameraYaw = 0;
+        let cameraPitch = 0;
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        dirLight.position.set(50, 100, 50);
+        scene.add(dirLight);
+
+        // Ground
+        const groundGeo = new THREE.PlaneGeometry(400, 400);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x7ec850 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // House base
+        // const houseGeo = new THREE.BoxGeometry(30, 20, 20);
+        // const houseMat = new THREE.MeshLambertMaterial({ color: 0xf5deb3 });
+        // const house = new THREE.Mesh(houseGeo, houseMat);
+        // house.position.set(0, 10, 0);
+        // scene.add(house);
+
+        // Hollow house: 4 walls and roof
+        const wallMat = new THREE.MeshLambertMaterial({ color: 0xf5deb3 });
+        const wallThickness = 1;
+        const houseWidth = 30;
+        const houseHeight = 20;
+        const houseDepth = 20;
+
+        // Left wall
+        const wallLeftGeo = new THREE.BoxGeometry(wallThickness, houseHeight, houseDepth);
+        const wallLeft = new THREE.Mesh(wallLeftGeo, wallMat);
+        wallLeft.position.set(-houseWidth / 2 + wallThickness / 2, houseHeight / 2, 0);
+        scene.add(wallLeft);
+
+        // Right wall
+        const wallRight = wallLeft.clone();
+        wallRight.position.set(houseWidth / 2 - wallThickness / 2, houseHeight / 2, 0);
+        scene.add(wallRight);
+
+        // Back wall
+        const wallBackGeo = new THREE.BoxGeometry(houseWidth, houseHeight, wallThickness);
+        const wallBack = new THREE.Mesh(wallBackGeo, wallMat);
+        wallBack.position.set(0, houseHeight / 2, -houseDepth / 2 + wallThickness / 2);
+        scene.add(wallBack);
+
+        // Front wall with door opening (split into two segments)
+        const doorWidth = 6;
+        const houseWidth = 30;
+        const houseHeight = 20;
+        const houseDepth = 20;
+        const wallThickness = 1;
+        const wallZ = houseDepth / 2 - wallThickness / 2;
+        const sideWallWidth = (houseWidth - doorWidth) / 2;
+
+        // Left segment of front wall
+        const wallFrontLeftGeo = new THREE.BoxGeometry(sideWallWidth, houseHeight, wallThickness);
+        const wallFrontLeft = new THREE.Mesh(wallFrontLeftGeo, wallMat);
+        wallFrontLeft.position.set(
+            -doorWidth / 2 - sideWallWidth / 2, // aligns left wall to left of door
+            houseHeight / 2,
+            wallZ
+        );
+        scene.add(wallFrontLeft);
+
+        // Right segment of front wall
+        const wallFrontRightGeo = new THREE.BoxGeometry(sideWallWidth, houseHeight, wallThickness);
+        const wallFrontRight = new THREE.Mesh(wallFrontRightGeo, wallMat);
+        wallFrontRight.position.set(
+            doorWidth / 2 + sideWallWidth / 2, // aligns right wall to right of door
+            houseHeight / 2,
+            wallZ
+        );
+        scene.add(wallFrontRight);
+
+        // Door
+        const doorGeo = new THREE.BoxGeometry(doorWidth, 10, 1);
+        const doorMat = new THREE.MeshLambertMaterial({ color: 0x654321 });
+        const door = new THREE.Mesh(doorGeo, doorMat);
+        door.position.set(0, 5, wallZ + 0.6); // Centered in the opening
+        scene.add(door);
+
+        // Update houseCollision for new hollow house
+        const houseCollision = {
+            x: 0,
+            y: houseHeight / 2,
+            z: 0,
+            width: houseWidth,
+            height: houseHeight,
+            depth: houseDepth
+        };
+
+        // Store tree trunks for collision
+        let treeTrunks = [];
+
+        // Trees
+        function addTree(x, z) {
+            // Trunk
+            const trunkGeo = new THREE.CylinderGeometry(1.5, 1.5, 10, 8);
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            trunk.position.set(x, 5, z);
+            scene.add(trunk);
+
+            // Store trunk position and radius for collision
+            treeTrunks.push({ x: x, z: z, radius: 2 });
+
+            // Leaves
+            const leavesGeo = new THREE.SphereGeometry(5, 12, 12);
+            const leavesMat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+            const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+            leaves.position.set(x, 12, z);
+            scene.add(leaves);
+        }
+
+        // Random forest around house
+        for (let i = 0; i < 30; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let radius = 50 + Math.random() * 120;
+            let x = Math.cos(angle) * radius;
+            let z = Math.sin(angle) * radius;
+            addTree(x, z);
+        }
+
+        // First-person controls
+        let keys = {};
+        document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        let isMouseDown = false;
+        let lastMouseX = 0, lastMouseY = 0;
+        document.addEventListener('mousedown', e => { isMouseDown = true; lastMouseX = e.clientX; lastMouseY = e.clientY; });
+        document.addEventListener('mouseup', e => { isMouseDown = false; });
+        document.addEventListener('mousemove', e => {
+            if (isMouseDown) {
+                cameraYaw -= (e.clientX - lastMouseX) * 0.005;
+                cameraPitch -= (e.clientY - lastMouseY) * 0.005;
+                cameraPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cameraPitch));
+            }
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        // Door open state
+        let doorOpen = false;
+        let doorAngle = 0;
+
+        // Animation loop
+        function animate() {
+            // Remove or comment out this line:
+            // roof.rotation.y += 0.005;
+
+            // First-person movement
+            let speed = 1.5;
+            let forward = 0, right = 0;
+            if (keys['w']) forward += speed;
+            if (keys['s']) forward -= speed;
+            if (keys['a']) right -= speed;
+            if (keys['d']) right += speed;
+
+            // Calculate movement direction
+            let dir = new THREE.Vector3(
+                Math.sin(cameraYaw),
+                0,
+                Math.cos(cameraYaw)
+            );
+            let strafe = new THREE.Vector3(
+                Math.sin(cameraYaw - Math.PI / 2),
+                0,
+                Math.cos(cameraYaw - Math.PI / 2)
+            );
+
+            // Predict next position
+            let nextPos = camera.position.clone();
+            nextPos.addScaledVector(dir, forward);
+            nextPos.addScaledVector(strafe, right);
+
+            // Collision check with tree trunks
+            let collision = false;
+            for (let t of treeTrunks) {
+                let dx = nextPos.x - t.x;
+                let dz = nextPos.z - t.z;
+                if (Math.sqrt(dx * dx + dz * dz) < t.radius + 1.5) {
+                    collision = true;
+                    break;
+                }
+            }
+
+            // House collision check (simple bounding box)
+            // If door is open, allow entry through door area
+            let nearDoor = (
+                nextPos.x > door.position.x - 3 &&
+                nextPos.x < door.position.x + 3 &&
+                nextPos.z > door.position.z - 1.5 &&
+                nextPos.z < door.position.z + 1.5 &&
+                nextPos.y > 0 && nextPos.y < 12
+            );
+
+            let inHouseBox = (
+                nextPos.x > houseCollision.x - houseCollision.width / 2 - 1.5 &&
+                nextPos.x < houseCollision.x + houseCollision.width / 2 + 1.5 &&
+                nextPos.z > houseCollision.z - houseCollision.depth / 2 - 1.5 &&
+                nextPos.z < houseCollision.z + houseCollision.depth / 2 + 1.5 &&
+                nextPos.y > 0 && nextPos.y < houseCollision.height + 2
+            );
+
+            if (inHouseBox && !(doorOpen && nearDoor)) {
+                collision = true;
+            }
+
+            // Only move if no collision
+            if (!collision) {
+                camera.position.copy(nextPos);
+            }
+
+            // Door opening logic
+            if (keys['e'] && nearDoor && !doorOpen) {
+                doorOpen = true;
+            }
+            if (doorOpen && doorAngle > -Math.PI / 2) {
+                doorAngle -= 0.05;
+                door.rotation.y = doorAngle;
+            }
+
+            // Set camera look direction
+            let lookDir = new THREE.Vector3(
+                Math.sin(cameraYaw) * Math.cos(cameraPitch),
+                Math.sin(cameraPitch),
+                Math.cos(cameraYaw) * Math.cos(cameraPitch)
+            );
+            camera.lookAt(camera.position.clone().add(lookDir));
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Responsive resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>
