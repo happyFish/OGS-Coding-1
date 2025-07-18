@@ -86,14 +86,15 @@
 </head>
 
 <body>
-    <h1>🦀 PIXEL CRAB ADVENTURE 🦀<br>UNDER THE SEA</h1>
     <canvas id="gameCanvas"></canvas>
     <div id="gameInfo">
-        <div>PEARLS: <span id="score" class="score">0</span> | HEALTH: <span id="health" class="health">3</span></div>
-        <div id="gameStatus">Collect pearls and avoid the jellyfish!</div>
+        <div>LEVEL: <span id="level" class="score">1</span> | SCORE: <span id="score" class="score">0</span> | HEALTH:
+            <span id="health" class="health">3</span>
+        </div>
+        <div id="gameStatus">Level 1/2 - Section 1/3 - Attack jellyfish! (10 jellyfish remaining)</div>
     </div>
     <div id="controls">
-        ARROW KEYS or WASD to move • Collect pearls • Avoid jellyfish • Find the treasure chest!
+        ARROW KEYS or WASD to move • SPACE to attack • Complete both 2 levels to win!
     </div>
 
     <script>
@@ -101,6 +102,7 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const healthElement = document.getElementById('health');
+        const levelElement = document.getElementById('level');
         const statusElement = document.getElementById('gameStatus');
 
         // Disable image smoothing for pixel art
@@ -125,7 +127,13 @@
             score: 0,
             health: 3,
             gameRunning: true,
-            time: 0
+            time: 0,
+            level: 1,
+            jellyfishDefeated: 0,
+            bossActive: false,
+            section: 1,
+            sectionsPerLevel: 3,
+            enemiesPerSection: 10
         };
 
         // Player (Crab)
@@ -138,7 +146,10 @@
             velocityY: 0,
             speed: 4,
             color: '#FF6B47',
-            invulnerable: 0
+            invulnerable: 0,
+            attacking: false,
+            attackCooldown: 0,
+            attackRange: 60
         };
 
         // Function to get responsive positions
@@ -153,34 +164,46 @@
         // Function to generate responsive pearls
         function generatePearls() {
             return [
-                { x: getResponsiveX(0.2), y: getResponsiveY(0.15), collected: false },
-                { x: getResponsiveX(0.4), y: getResponsiveY(0.1), collected: false },
-                { x: getResponsiveX(0.6), y: getResponsiveY(0.25), collected: false },
-                { x: getResponsiveX(0.8), y: getResponsiveY(0.2), collected: false },
-                { x: getResponsiveX(0.5), y: getResponsiveY(0.7), collected: false },
-                { x: getResponsiveX(0.15), y: getResponsiveY(0.8), collected: false },
-                { x: getResponsiveX(0.75), y: getResponsiveY(0.6), collected: false },
-                { x: getResponsiveX(0.9), y: getResponsiveY(0.4), collected: false }
+                // No pearls - empty array
             ];
         }
 
-        // Function to generate responsive jellyfish
+        // Function to generate responsive jellyfish/stingrays for current section
         function generateJellyfish() {
-            return [
-                { x: getResponsiveX(0.3), y: getResponsiveY(0.3), velocityX: 2, velocityY: 1, phase: 0 },
-                { x: getResponsiveX(0.6), y: getResponsiveY(0.5), velocityX: -2, velocityY: -1, phase: Math.PI },
-                { x: getResponsiveX(0.8), y: getResponsiveY(0.7), velocityX: 1.5, velocityY: 1.5, phase: Math.PI / 2 },
-                { x: getResponsiveX(0.4), y: getResponsiveY(0.15), velocityX: -1, velocityY: 1, phase: Math.PI * 1.5 }
-            ];
+            const sectionEnemies = [];
+
+            // Generate 10 enemies for the current section
+            for (let i = 0; i < game.enemiesPerSection; i++) {
+                const speedMultiplier = 1 + (game.level - 1) * 0.2 + (game.section - 1) * 0.1; // Speed increases with level and section
+                const enemy = {
+                    x: getResponsiveX(Math.random() * 0.8 + 0.1),
+                    y: getResponsiveY(Math.random() * 0.6 + 0.1),
+                    velocityX: (Math.random() - 0.5) * 3 * speedMultiplier,
+                    velocityY: (Math.random() - 0.5) * 3 * speedMultiplier,
+                    phase: Math.random() * Math.PI * 2,
+                    type: game.level === 2 ? 'stingray' : 'jellyfish', // Level 2 has stingrays
+                    health: game.level === 2 ? 2 : 1, // Stingrays take 2 hits, jellyfish take 1 hit
+                    maxHealth: game.level === 2 ? 2 : 1
+                };
+                sectionEnemies.push(enemy);
+            }
+
+            return sectionEnemies;
         }
 
         // Function to generate responsive seaweed
         function generateSeaweed() {
             return [
-                { x: getResponsiveX(0.1), y: getResponsiveY(0.6), height: canvas.height * 0.3, sway: 0 },
-                { x: getResponsiveX(0.3), y: getResponsiveY(0.5), height: canvas.height * 0.4, sway: Math.PI },
+                { x: getResponsiveX(0.05), y: getResponsiveY(0.6), height: canvas.height * 0.35, sway: 0 },
+                { x: getResponsiveX(0.15), y: getResponsiveY(0.7), height: canvas.height * 0.25, sway: Math.PI * 0.3 },
+                { x: getResponsiveX(0.25), y: getResponsiveY(0.5), height: canvas.height * 0.4, sway: Math.PI },
+                { x: getResponsiveX(0.35), y: getResponsiveY(0.65), height: canvas.height * 0.3, sway: Math.PI * 0.7 },
+                { x: getResponsiveX(0.45), y: getResponsiveY(0.8), height: canvas.height * 0.2, sway: Math.PI * 1.2 },
                 { x: getResponsiveX(0.55), y: getResponsiveY(0.7), height: canvas.height * 0.25, sway: Math.PI / 2 },
-                { x: getResponsiveX(0.85), y: getResponsiveY(0.55), height: canvas.height * 0.35, sway: Math.PI * 1.5 }
+                { x: getResponsiveX(0.65), y: getResponsiveY(0.55), height: canvas.height * 0.4, sway: Math.PI * 1.8 },
+                { x: getResponsiveX(0.75), y: getResponsiveY(0.75), height: canvas.height * 0.25, sway: Math.PI * 0.9 },
+                { x: getResponsiveX(0.85), y: getResponsiveY(0.55), height: canvas.height * 0.35, sway: Math.PI * 1.5 },
+                { x: getResponsiveX(0.95), y: getResponsiveY(0.8), height: canvas.height * 0.2, sway: Math.PI * 2.1 }
             ];
         }
 
@@ -189,24 +212,22 @@
         let jellyfish = generateJellyfish();
         let seaweed = generateSeaweed();
 
-        // Treasure chest
-        const treasure = {
-            get x() { return getResponsiveX(0.9); },
-            get y() { return getResponsiveY(0.85); },
-            width: 40,
-            height: 30,
-            found: false
-        };
+        // Boss jellyfish for level 1
+        let bossJellyfish = null;
+
+        // No treasure chest in this game
 
         // Input handling
         const keys = {};
 
         document.addEventListener('keydown', (e) => {
             keys[e.key.toLowerCase()] = true;
+            keys[e.key] = true; // Keep original key for spacebar
         });
 
         document.addEventListener('keyup', (e) => {
             keys[e.key.toLowerCase()] = false;
+            keys[e.key] = false; // Keep original key for spacebar
         });
 
         // Collision detection
@@ -236,6 +257,13 @@
                 player.velocityY = player.speed;
             }
 
+            // Attack with spacebar
+            if (keys[' '] && player.attackCooldown === 0) {
+                player.attacking = true;
+                player.attackCooldown = 30; // Half second cooldown at 60fps
+                performAttack();
+            }
+
             // Update position
             player.x += player.velocityX;
             player.y += player.velocityY;
@@ -244,9 +272,15 @@
             player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
             player.y = Math.max(0, Math.min(canvas.height - player.height, player.y));
 
-            // Decrease invulnerability
+            // Decrease invulnerability and attack cooldown
             if (player.invulnerable > 0) {
                 player.invulnerable--;
+            }
+            if (player.attackCooldown > 0) {
+                player.attackCooldown--;
+                if (player.attackCooldown === 0) {
+                    player.attacking = false;
+                }
             }
         }
 
@@ -266,26 +300,38 @@
             }
         }
 
-        // Update jellyfish
+        // Update jellyfish/stingrays
         function updateJellyfish() {
-            for (let jelly of jellyfish) {
-                // Move jellyfish
-                jelly.x += jelly.velocityX;
-                jelly.y += jelly.velocityY;
-                jelly.phase += 0.05;
+            for (let enemy of jellyfish) {
+                // Calculate direction toward player
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
 
-                // Bounce off walls
-                if (jelly.x <= 0 || jelly.x >= canvas.width - 30) {
-                    jelly.velocityX *= -1;
+                // Normalize direction and apply AI movement
+                if (distance > 0) {
+                    const baseSpeed = 1 + (game.level - 1) * 0.2; // Speed increases with level
+                    enemy.velocityX = (dx / distance) * baseSpeed;
+                    enemy.velocityY = (dy / distance) * baseSpeed;
                 }
-                if (jelly.y <= 0 || jelly.y >= canvas.height - 30) {
-                    jelly.velocityY *= -1;
+
+                // Move enemy toward player
+                enemy.x += enemy.velocityX;
+                enemy.y += enemy.velocityY;
+                enemy.phase += 0.05;
+
+                // Keep enemies in bounds (bounce off walls)
+                if (enemy.x <= 0 || enemy.x >= canvas.width - 30) {
+                    enemy.x = Math.max(0, Math.min(canvas.width - 30, enemy.x));
+                }
+                if (enemy.y <= 0 || enemy.y >= canvas.height - 30) {
+                    enemy.y = Math.max(0, Math.min(canvas.height - 30, enemy.y));
                 }
 
                 // Check collision with player
                 if (player.invulnerable === 0 && checkCollision(player, {
-                    x: jelly.x,
-                    y: jelly.y,
+                    x: enemy.x,
+                    y: enemy.y,
                     width: 30,
                     height: 30
                 })) {
@@ -300,6 +346,68 @@
             }
         }
 
+        // Update boss jellyfish
+        function updateBossJellyfish() {
+            if (!bossJellyfish) return;
+
+            // Update stun timer
+            if (bossJellyfish.stunned) {
+                bossJellyfish.stunTimer--;
+                if (bossJellyfish.stunTimer <= 0) {
+                    bossJellyfish.stunned = false;
+                }
+            }
+
+            // Only move if not stunned
+            if (!bossJellyfish.stunned) {
+                // Calculate direction toward player
+                const dx = player.x - bossJellyfish.x;
+                const dy = player.y - bossJellyfish.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Boss moves slower but is more aggressive
+                if (distance > 0) {
+                    const bossSpeed = 0.8;
+                    bossJellyfish.velocityX = (dx / distance) * bossSpeed;
+                    bossJellyfish.velocityY = (dy / distance) * bossSpeed;
+                }
+
+                // Move boss toward player
+                bossJellyfish.x += bossJellyfish.velocityX;
+                bossJellyfish.y += bossJellyfish.velocityY;
+            } else {
+                // Stop moving when stunned
+                bossJellyfish.velocityX = 0;
+                bossJellyfish.velocityY = 0;
+            }
+
+            bossJellyfish.phase += 0.03;
+
+            // Keep boss in bounds
+            if (bossJellyfish.x <= 0 || bossJellyfish.x >= canvas.width - 120) {
+                bossJellyfish.x = Math.max(0, Math.min(canvas.width - 120, bossJellyfish.x));
+            }
+            if (bossJellyfish.y <= 0 || bossJellyfish.y >= canvas.height - 120) {
+                bossJellyfish.y = Math.max(0, Math.min(canvas.height - 120, bossJellyfish.y));
+            }
+
+            // Check collision with player (only if not stunned)
+            if (!bossJellyfish.stunned && player.invulnerable === 0 && checkCollision(player, {
+                x: bossJellyfish.x + 20,
+                y: bossJellyfish.y + 20,
+                width: 80,
+                height: 80
+            })) {
+                game.health -= 2; // Boss does more damage
+                player.invulnerable = 90; // Longer invulnerability
+                updateUI();
+
+                if (game.health <= 0) {
+                    gameOver();
+                }
+            }
+        }
+
         // Function to regenerate responsive elements on resize
         function regenerateElements() {
             // Keep collected state of pearls
@@ -309,8 +417,9 @@
                 pearl.collected = collectedStates[i] || false;
             });
 
-            // Regenerate other elements
+            // Regenerate other elements (keep current level jellyfish)
             seaweed = generateSeaweed();
+            jellyfish = generateJellyfish();
 
             // Reset player if out of bounds
             if (player.x > canvas.width - player.width) {
@@ -321,26 +430,196 @@
             }
         }
 
-        // Update treasure
-        function updateTreasure() {
-            if (!treasure.found && checkCollision(player, treasure)) {
-                treasure.found = true;
-                game.score += 100;
-                statusElement.textContent = '🏆 TREASURE FOUND! You are the ultimate crab explorer! 🏆';
-                statusElement.style.color = '#FFD700';
+        // Attack function
+        function performAttack() {
+            // Create attack area around the crab
+            const attackArea = {
+                x: player.x - player.attackRange / 2,
+                y: player.y - player.attackRange / 2,
+                width: player.width + player.attackRange,
+                height: player.height + player.attackRange
+            };
+
+            // Check for boss jellyfish attack
+            if (bossJellyfish && checkCollision(attackArea, {
+                x: bossJellyfish.x + 20,
+                y: bossJellyfish.y + 20,
+                width: 80,
+                height: 80
+            })) {
+                bossJellyfish.health--;
+                game.score += 10; // Smaller points per hit since it takes 100 hits
+
+                // Only stun the boss if he's not already stunned
+                if (!bossJellyfish.stunned) {
+                    bossJellyfish.stunned = true;
+                    bossJellyfish.stunTimer = 420; // 7 seconds (420 frames at 60fps)
+                }
+
+                // Create attack effect
+                createAttackEffect(bossJellyfish.x + 60, bossJellyfish.y + 60);
+
+                if (bossJellyfish.health <= 0) {
+                    // Boss defeated!
+                    bossJellyfish = null;
+                    game.bossActive = false;
+                    game.score += 1000; // Big bonus for defeating boss
+                    checkLevelComplete();
+                }
                 updateUI();
             }
+
+            // Check for regular jellyfish in attack range
+            for (let i = jellyfish.length - 1; i >= 0; i--) {
+                const jelly = jellyfish[i];
+                if (checkCollision(attackArea, {
+                    x: jelly.x,
+                    y: jelly.y,
+                    width: 30,
+                    height: 30
+                })) {
+                    // Damage the enemy
+                    jelly.health--;
+
+                    // Create attack effect particles
+                    createAttackEffect(jelly.x + 15, jelly.y + 15);
+
+                    // Check if enemy is defeated
+                    if (jelly.health <= 0) {
+                        // Remove the enemy
+                        jellyfish.splice(i, 1);
+                        game.jellyfishDefeated++;
+
+                        // Add score bonus for defeating enemy (more points per level)
+                        game.score += 50 * game.level;
+
+                        // Check if level is complete
+                        checkLevelComplete();
+                    } else {
+                        // Enemy still alive, give smaller score for hit
+                        game.score += 10 * game.level;
+                    }
+
+                    updateUI();
+                }
+            }
+        }
+
+        // Create attack effect
+        function createAttackEffect(x, y) {
+            // We'll add visual feedback in the draw function
+            player.lastAttackX = x;
+            player.lastAttackY = y;
+            player.attackEffectTimer = 15;
+        }
+
+        // Check if level is complete
+        function checkLevelComplete() {
+            if (jellyfish.length === 0 && !bossJellyfish) {
+                if (game.section < game.sectionsPerLevel) {
+                    // Move to next section
+                    game.section++;
+                    jellyfish = generateJellyfish();
+
+                    statusElement.textContent = `🌊 SECTION ${game.section} WAVE INCOMING! Get ready! 🌊`;
+                    statusElement.style.color = '#00FFFF';
+
+                    setTimeout(() => {
+                        updateUI();
+                    }, 2000);
+
+                    updateUI();
+                    return;
+                }
+
+                // All sections complete, spawn boss for this level
+                if (!game.bossActive) {
+                    spawnBoss();
+                    return;
+                }
+
+                // Boss defeated, check if game is complete
+                if (game.level === 2) {
+                    // Player has completed all 2 levels - win the game!
+                    game.gameRunning = false;
+                    game.score += 500; // Big bonus for completing the game
+                    statusElement.textContent = '🏆 CONGRATULATIONS! YOU WON THE GAME! All 2 levels completed! 🏆';
+                    statusElement.style.color = '#FFD700';
+                    updateUI();
+                    return;
+                }
+
+                // Move to next level
+                game.level++;
+                game.section = 1; // Reset to section 1
+                game.score += 200 * game.level; // Level completion bonus
+
+                // Generate new jellyfish for next level, section 1
+                jellyfish = generateJellyfish();
+
+                // Show level complete message
+                statusElement.textContent = `🎉 LEVEL ${game.level - 1} COMPLETE! Welcome to Level ${game.level}! 🎉`;
+                statusElement.style.color = '#00FF00';
+
+                // Reset status message after 3 seconds
+                setTimeout(() => {
+                    updateUI();
+                }, 3000);
+
+                updateUI();
+            }
+        }
+
+        // Spawn boss jellyfish or stingray
+        function spawnBoss() {
+            game.bossActive = true;
+            const bossHealth = game.level === 2 ? 200 : 100; // Stingray boss takes 200 hits, jellyfish boss takes 100
+            bossJellyfish = {
+                x: getResponsiveX(0.4),
+                y: getResponsiveY(0.3),
+                velocityX: 0,
+                velocityY: 0,
+                phase: 0,
+                health: bossHealth,
+                maxHealth: bossHealth,
+                stunned: false,
+                stunTimer: 0,
+                type: game.level === 2 ? 'stingray' : 'jellyfish' // Level 2 has stingray boss
+            };
+
+            const bossName = game.level === 2 ? 'STINGRAY' : 'JELLYFISH';
+            const hitsNeeded = game.level === 2 ? '200' : '100';
+            statusElement.textContent = `⚠️ LEVEL ${game.level} BOSS ${bossName} APPEARED! ${hitsNeeded} hits to defeat! ⚠️`;
+            statusElement.style.color = '#FF4500';
+
+            setTimeout(() => {
+                updateUI();
+            }, 3000);
+        }
+
+        // Update treasure - removed
+        function updateTreasure() {
+            // No treasure in this game
         }
 
         // Update UI
         function updateUI() {
             scoreElement.textContent = game.score;
             healthElement.textContent = game.health;
+            levelElement.textContent = game.level;
 
-            const collectedPearls = pearls.filter(p => p.collected).length;
-            if (collectedPearls === pearls.length && !treasure.found) {
-                statusElement.textContent = 'All pearls collected! Find the treasure chest!';
-                statusElement.style.color = '#00FF00';
+            // Updated status message with level and section information
+            if (game.gameRunning) {
+                if (bossJellyfish) {
+                    const enemyType = game.level === 2 ? 'Giant Stingray' : 'Giant Jellyfish';
+                    const maxHealth = game.level === 2 ? 200 : 100;
+                    statusElement.textContent = `Level ${game.level}/2 - BOSS FIGHT! ${enemyType} Health: ${bossJellyfish.health}/${maxHealth}`;
+                    statusElement.style.color = '#FF4500';
+                } else {
+                    const enemyType = game.level === 2 ? 'stingrays' : 'jellyfish';
+                    statusElement.textContent = `Level ${game.level}/2 - Section ${game.section}/${game.sectionsPerLevel} - Attack ${enemyType}! (${jellyfish.length} ${enemyType} remaining)`;
+                    statusElement.style.color = '#00FFFF';
+                }
             }
         }
 
@@ -366,29 +645,49 @@
                 return;
             }
 
+            // Attack effect - make crab larger and redder when attacking
+            const attackScale = player.attacking ? 1.2 : 1;
+            const attackColor = player.attacking ? '#FF3333' : player.color;
+            const offsetX = player.attacking ? -3 : 0;
+            const offsetY = player.attacking ? -3 : 0;
+
             // Crab body
-            drawPixelRect(x + 4, y + 8, 24, 12, player.color);
+            drawPixelRect(x + 4 + offsetX, y + 8 + offsetY, 24 * attackScale, 12 * attackScale, attackColor);
 
             // Crab shell pattern
-            drawPixelRect(x + 8, y + 10, 4, 2, '#FF8C69');
-            drawPixelRect(x + 16, y + 10, 4, 2, '#FF8C69');
-            drawPixelRect(x + 12, y + 12, 8, 2, '#FF8C69');
+            drawPixelRect(x + 8 + offsetX, y + 10 + offsetY, 4 * attackScale, 2 * attackScale, '#FF8C69');
+            drawPixelRect(x + 16 + offsetX, y + 10 + offsetY, 4 * attackScale, 2 * attackScale, '#FF8C69');
+            drawPixelRect(x + 12 + offsetX, y + 12 + offsetY, 8 * attackScale, 2 * attackScale, '#FF8C69');
 
-            // Claws
-            drawPixelRect(x, y + 12, 8, 4, player.color);
-            drawPixelRect(x + 24, y + 12, 8, 4, player.color);
+            // Claws (extend when attacking)
+            const clawExtend = player.attacking ? 4 : 0;
+            drawPixelRect(x - clawExtend + offsetX, y + 12 + offsetY, 8 + clawExtend, 4 * attackScale, attackColor);
+            drawPixelRect(x + 24 + offsetX, y + 12 + offsetY, 8 + clawExtend, 4 * attackScale, attackColor);
 
             // Eyes
-            drawPixelRect(x + 8, y + 4, 4, 4, '#000');
-            drawPixelRect(x + 20, y + 4, 4, 4, '#000');
-            drawPixelRect(x + 10, y + 6, 2, 2, '#FFF');
-            drawPixelRect(x + 22, y + 6, 2, 2, '#FFF');
+            drawPixelRect(x + 8 + offsetX, y + 4 + offsetY, 4, 4, '#000');
+            drawPixelRect(x + 20 + offsetX, y + 4 + offsetY, 4, 4, '#000');
+
+            // Eyes glow red when attacking
+            const eyeColor = player.attacking ? '#FF0000' : '#FFF';
+            drawPixelRect(x + 10 + offsetX, y + 6 + offsetY, 2, 2, eyeColor);
+            drawPixelRect(x + 22 + offsetX, y + 6 + offsetY, 2, 2, eyeColor);
 
             // Legs
-            drawPixelRect(x + 6, y + 20, 2, 4, player.color);
-            drawPixelRect(x + 12, y + 20, 2, 4, player.color);
-            drawPixelRect(x + 18, y + 20, 2, 4, player.color);
-            drawPixelRect(x + 24, y + 20, 2, 4, player.color);
+            drawPixelRect(x + 6 + offsetX, y + 20 + offsetY, 2, 4, attackColor);
+            drawPixelRect(x + 12 + offsetX, y + 20 + offsetY, 2, 4, attackColor);
+            drawPixelRect(x + 18 + offsetX, y + 20 + offsetY, 2, 4, attackColor);
+            drawPixelRect(x + 24 + offsetX, y + 20 + offsetY, 2, 4, attackColor);
+
+            // Draw attack effect
+            if (player.attackEffectTimer > 0) {
+                const effectAlpha = player.attackEffectTimer / 15;
+                ctx.fillStyle = `rgba(255, 255, 0, ${effectAlpha})`;
+                ctx.fillRect(player.lastAttackX - 10, player.lastAttackY - 10, 20, 20);
+                ctx.fillStyle = `rgba(255, 0, 0, ${effectAlpha * 0.7})`;
+                ctx.fillRect(player.lastAttackX - 6, player.lastAttackY - 6, 12, 12);
+                player.attackEffectTimer--;
+            }
         }
 
         function drawPearls() {
@@ -411,84 +710,331 @@
         }
 
         function drawJellyfish() {
-            for (let jelly of jellyfish) {
-                const x = Math.floor(jelly.x);
-                const y = Math.floor(jelly.y);
-                const float = Math.sin(jelly.phase) * 2;
+            for (let enemy of jellyfish) {
+                const x = Math.floor(enemy.x);
+                const y = Math.floor(enemy.y);
+                const float = Math.sin(enemy.phase) * 2;
 
-                // Jellyfish bell
-                const bellY = y + float;
-                drawPixelRect(x + 6, bellY, 18, 12, 'rgba(255, 192, 203, 0.8)');
-                drawPixelRect(x + 8, bellY + 2, 14, 8, 'rgba(255, 182, 193, 0.9)');
-                drawPixelRect(x + 10, bellY + 4, 10, 4, 'rgba(255, 160, 160, 1.0)');
+                if (enemy.type === 'stingray') {
+                    // Draw stingray
+                    const rayY = y + float;
 
-                // Tentacles
-                for (let i = 0; i < 4; i++) {
-                    const tentacleX = x + 8 + i * 4;
-                    const tentacleFloat = Math.sin(jelly.phase + i * 0.5) * 3;
-                    drawPixelRect(tentacleX, bellY + 12, 2, 8 + tentacleFloat, 'rgba(255, 192, 203, 0.7)');
-                    drawPixelRect(tentacleX, bellY + 20 + tentacleFloat, 2, 4, 'rgba(255, 192, 203, 0.5)');
+                    // Health-based color intensity for damaged stingrays
+                    const healthRatio = enemy.health / enemy.maxHealth;
+                    const damageIntensity = (1 - healthRatio) * 80; // Red tint when damaged
+
+                    // Stingray body (diamond shape) - gets redder when damaged
+                    drawPixelRect(x + 8, rayY + 6, 14, 8, `rgba(${139 + damageIntensity}, ${Math.max(69 - damageIntensity / 2, 30)}, 19, 0.9)`);
+                    drawPixelRect(x + 6, rayY + 8, 18, 4, `rgba(${160 + damageIntensity}, ${Math.max(82 - damageIntensity / 2, 40)}, 45, 0.9)`);
+                    drawPixelRect(x + 4, rayY + 10, 22, 2, `rgba(${160 + damageIntensity}, ${Math.max(82 - damageIntensity / 2, 40)}, 45, 0.8)`);
+
+                    // Stingray wings
+                    drawPixelRect(x, rayY + 8, 6, 6, `rgba(${139 + damageIntensity}, ${Math.max(69 - damageIntensity / 2, 30)}, 19, 0.7)`);
+                    drawPixelRect(x + 24, rayY + 8, 6, 6, `rgba(${139 + damageIntensity}, ${Math.max(69 - damageIntensity / 2, 30)}, 19, 0.7)`);
+
+                    // Stingray tail
+                    const tailFloat = Math.sin(enemy.phase + Math.PI) * 3;
+                    drawPixelRect(x + 14, rayY + 14, 2, 8 + tailFloat, `rgba(${101 + damageIntensity}, ${Math.max(67 - damageIntensity / 2, 25)}, 33, 0.8)`);
+
+                    // Stingray spots
+                    drawPixelRect(x + 10, rayY + 8, 2, 2, `rgba(${101 + damageIntensity}, ${Math.max(67 - damageIntensity / 2, 25)}, 33, 0.9)`);
+                    drawPixelRect(x + 18, rayY + 9, 2, 2, `rgba(${101 + damageIntensity}, ${Math.max(67 - damageIntensity / 2, 25)}, 33, 0.9)`);
+                } else {
+                    // Draw jellyfish (original code)
+                    const bellY = y + float;
+                    drawPixelRect(x + 6, bellY, 18, 12, 'rgba(255, 192, 203, 0.8)');
+                    drawPixelRect(x + 8, bellY + 2, 14, 8, 'rgba(255, 182, 193, 0.9)');
+                    drawPixelRect(x + 10, bellY + 4, 10, 4, 'rgba(255, 160, 160, 1.0)');
+
+                    // Tentacles
+                    for (let i = 0; i < 4; i++) {
+                        const tentacleX = x + 8 + i * 4;
+                        const tentacleFloat = Math.sin(enemy.phase + i * 0.5) * 3;
+                        drawPixelRect(tentacleX, bellY + 12, 2, 8 + tentacleFloat, 'rgba(255, 192, 203, 0.7)');
+                        drawPixelRect(tentacleX, bellY + 20 + tentacleFloat, 2, 4, 'rgba(255, 192, 203, 0.5)');
+                    }
                 }
+            }
+        }
+
+        function drawBossJellyfish() {
+            if (!bossJellyfish) return;
+
+            const x = Math.floor(bossJellyfish.x);
+            const y = Math.floor(bossJellyfish.y);
+            const float = Math.sin(bossJellyfish.phase) * 4;
+
+            // Different boss based on level
+            if (bossJellyfish.type === 'stingray') {
+                // Giant stingray boss
+                const rayY = y + float;
+
+                // Pulsing effect based on health
+                const healthRatio = bossJellyfish.health / bossJellyfish.maxHealth;
+                const redIntensity = (1 - healthRatio) * 100;
+
+                // Stun effect - make boss flash blue when stunned
+                let bodyColor1, bodyColor2, bodyColor3, wingColor, tailColor;
+                if (bossJellyfish.stunned && Math.floor(bossJellyfish.stunTimer / 10) % 2) {
+                    // Flash blue when stunned
+                    bodyColor1 = `rgba(100, 150, 255, 0.9)`;
+                    bodyColor2 = `rgba(80, 130, 255, 0.9)`;
+                    bodyColor3 = `rgba(60, 110, 255, 0.8)`;
+                    wingColor = `rgba(100, 150, 255, 0.7)`;
+                    tailColor = `rgba(80, 130, 255, 0.8)`;
+                } else {
+                    // Normal brown colors with health-based redness
+                    bodyColor1 = `rgba(${139 + redIntensity}, ${Math.max(69 - redIntensity, 20)}, 19, 0.9)`;
+                    bodyColor2 = `rgba(${160 + redIntensity}, ${Math.max(82 - redIntensity, 30)}, 45, 0.9)`;
+                    bodyColor3 = `rgba(${160 + redIntensity}, ${Math.max(82 - redIntensity, 30)}, 45, 0.8)`;
+                    wingColor = `rgba(${139 + redIntensity}, ${Math.max(69 - redIntensity, 20)}, 19, 0.7)`;
+                    tailColor = `rgba(${101 + redIntensity}, ${Math.max(67 - redIntensity, 20)}, 33, 0.8)`;
+                }
+
+                // Giant stingray body (much larger)
+                drawPixelRect(x + 20, rayY + 30, 80, 40, bodyColor1); // Main body
+                drawPixelRect(x + 15, rayY + 40, 90, 20, bodyColor2); // Wider middle
+                drawPixelRect(x + 10, rayY + 50, 100, 10, bodyColor3); // Widest part
+
+                // Giant wings
+                drawPixelRect(x - 10, rayY + 40, 30, 30, wingColor); // Left wing
+                drawPixelRect(x + 100, rayY + 40, 30, 30, wingColor); // Right wing
+
+                // Giant tail with animation
+                const tailFloat = Math.sin(bossJellyfish.phase + Math.PI) * 8;
+                drawPixelRect(x + 55, rayY + 70, 10, 40 + tailFloat, tailColor);
+                drawPixelRect(x + 57, rayY + 110 + tailFloat, 6, 20, tailColor); // Tail tip
+
+                // Giant spots
+                drawPixelRect(x + 35, rayY + 45, 8, 8, tailColor);
+                drawPixelRect(x + 75, rayY + 50, 8, 8, tailColor);
+                drawPixelRect(x + 55, rayY + 40, 6, 6, tailColor);
+            } else {
+                // Giant jellyfish boss (original code)
+                const bellY = y + float;
+
+                // Pulsing effect based on health
+                const healthRatio = bossJellyfish.health / bossJellyfish.maxHealth;
+                const pulse = Math.sin(game.time * 0.2) * 0.2 + 0.8;
+                const redIntensity = (1 - healthRatio) * 255;
+
+                // Stun effect - make boss flash blue when stunned
+                let bellColor1, bellColor2, bellColor3, tentacleColor1, tentacleColor2;
+                if (bossJellyfish.stunned && Math.floor(bossJellyfish.stunTimer / 10) % 2) {
+                    // Flash blue when stunned
+                    bellColor1 = `rgba(100, 150, 255, 0.9)`;
+                    bellColor2 = `rgba(80, 130, 255, 0.95)`;
+                    bellColor3 = `rgba(60, 110, 255, 1.0)`;
+                    tentacleColor1 = `rgba(100, 150, 255, 0.8)`;
+                    tentacleColor2 = `rgba(100, 150, 255, 0.6)`;
+                } else {
+                    // Normal colors
+                    bellColor1 = `rgba(${255}, ${192 - redIntensity / 4}, ${203 - redIntensity / 4}, 0.9)`;
+                    bellColor2 = `rgba(${255}, ${182 - redIntensity / 3}, ${193 - redIntensity / 3}, 0.95)`;
+                    bellColor3 = `rgba(${255}, ${160 - redIntensity / 2}, ${160 - redIntensity / 2}, 1.0)`;
+                    tentacleColor1 = `rgba(${255}, ${192 - redIntensity / 4}, ${203 - redIntensity / 4}, 0.8)`;
+                    tentacleColor2 = `rgba(${255}, ${192 - redIntensity / 4}, ${203 - redIntensity / 4}, 0.6)`;
+                }
+
+                // Main bell - huge size
+                drawPixelRect(x + 10, bellY, 100, 60, bellColor1);
+                drawPixelRect(x + 15, bellY + 10, 90, 40, bellColor2);
+                drawPixelRect(x + 20, bellY + 20, 80, 20, bellColor3);
+
+                // Giant tentacles
+                for (let i = 0; i < 8; i++) {
+                    const tentacleX = x + 15 + i * 12;
+                    const tentacleFloat = Math.sin(bossJellyfish.phase + i * 0.3) * 6;
+                    const tentacleLength = 40 + Math.sin(bossJellyfish.phase + i) * 10;
+
+                    // Main tentacle
+                    drawPixelRect(tentacleX, bellY + 60, 8, tentacleLength + tentacleFloat, tentacleColor1);
+                    // Tentacle tip
+                    drawPixelRect(tentacleX + 1, bellY + 60 + tentacleLength + tentacleFloat, 6, 15, tentacleColor2);
+                }
+            }
+
+            // Boss health bar (same for both types)
+            const barWidth = 200;
+            const barHeight = 8;
+            const barX = canvas.width / 2 - barWidth / 2;
+            const barY = 30;
+
+            // Health bar background
+            drawPixelRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4, '#000');
+            drawPixelRect(barX, barY, barWidth, barHeight, '#400');
+
+            // Health bar fill
+            const healthRatio = bossJellyfish.health / bossJellyfish.maxHealth;
+            const healthWidth = healthRatio * barWidth;
+            const healthColor = healthRatio > 0.5 ? '#FF4500' : healthRatio > 0.25 ? '#FF6600' : '#FF0000';
+            drawPixelRect(barX, barY, healthWidth, barHeight, healthColor);
+
+            // Stun indicator
+            if (bossJellyfish.stunned) {
+                const stunTimeLeft = Math.ceil(bossJellyfish.stunTimer / 60); // Convert to seconds
+                ctx.fillStyle = '#00FFFF';
+                ctx.font = '12px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText(`STUNNED: ${stunTimeLeft}s`, canvas.width / 2, barY + 25);
             }
         }
 
         function drawSeaweed() {
+            // Don't draw kelp in level 2 (shallow water)
+            if (game.level === 2) {
+                return;
+            }
+
             for (let weed of seaweed) {
                 weed.sway += 0.02;
                 const swayOffset = Math.sin(weed.sway) * 5;
 
-                // Draw seaweed segments
+                // Calculate sand level (same as in drawBackground)
+                const sandHeight = canvas.height * 0.15;
+                const sandY = canvas.height - sandHeight;
+
+                // Draw seaweed segments growing from the sand
                 for (let i = 0; i < weed.height; i += 8) {
-                    const segmentY = canvas.height - i;
+                    const segmentY = sandY - i; // Start from sand level and grow upward
                     const segmentSway = Math.sin(weed.sway + i * 0.1) * 3;
-                    drawPixelRect(weed.x + swayOffset + segmentSway, segmentY - 8, 6, 8, '#228B22');
-                    drawPixelRect(weed.x + swayOffset + segmentSway + 1, segmentY - 7, 4, 6, '#32CD32');
+
+                    // Only draw if the segment is above the sand
+                    if (segmentY > 0) {
+                        // Main kelp strand - darker green
+                        drawPixelRect(weed.x + swayOffset + segmentSway, segmentY, 6, 8, '#228B22');
+
+                        // Inner kelp - lighter green
+                        drawPixelRect(weed.x + swayOffset + segmentSway + 1, segmentY + 1, 4, 6, '#32CD32');
+
+                        // Kelp fronds (side branches) every few segments
+                        if (i % 16 === 0 && i > 0) {
+                            // Left frond
+                            drawPixelRect(weed.x + swayOffset + segmentSway - 3, segmentY + 2, 3, 4, '#2E8B57');
+                            // Right frond
+                            drawPixelRect(weed.x + swayOffset + segmentSway + 6, segmentY + 2, 3, 4, '#2E8B57');
+                        }
+
+                        // Add some texture variations
+                        if (i % 24 === 8) {
+                            drawPixelRect(weed.x + swayOffset + segmentSway + 2, segmentY + 2, 2, 2, '#90EE90');
+                        }
+                    }
                 }
+
+                // Draw kelp roots/base in the sand
+                const rootY = sandY + 2;
+                drawPixelRect(weed.x + swayOffset - 1, rootY, 8, 4, '#654321'); // Brown root
+                drawPixelRect(weed.x + swayOffset, rootY + 4, 6, 3, '#8B4513'); // Darker root base
             }
         }
 
         function drawTreasure() {
-            if (!treasure.found) {
-                const x = Math.floor(treasure.x);
-                const y = Math.floor(treasure.y);
-                const glow = Math.sin(game.time * 0.1) * 0.3 + 0.7;
-
-                // Treasure glow
-                ctx.fillStyle = `rgba(255, 215, 0, ${glow * 0.3})`;
-                ctx.fillRect(x - 4, y - 4, treasure.width + 8, treasure.height + 8);
-
-                // Chest base
-                drawPixelRect(x, y + 10, treasure.width, 20, '#8B4513');
-                drawPixelRect(x + 2, y + 12, treasure.width - 4, 16, '#A0522D');
-
-                // Chest lid
-                drawPixelRect(x, y, treasure.width, 15, '#DAA520');
-                drawPixelRect(x + 2, y + 2, treasure.width - 4, 11, '#FFD700');
-
-                // Lock
-                drawPixelRect(x + 16, y + 8, 8, 6, '#4B0000');
-                drawPixelRect(x + 18, y + 10, 4, 2, '#FFD700');
-            }
+            // No treasure chest to draw
         }
 
         function drawBackground() {
-            // Water gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#000080');
-            gradient.addColorStop(0.5, '#003080');
-            gradient.addColorStop(1, '#004080');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Different background for level 2 (shallow water)
+            if (game.level === 2) {
+                // Shallow water gradient - lighter blues and more green
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#87CEEB'); // Sky blue
+                gradient.addColorStop(0.3, '#4682B4'); // Steel blue
+                gradient.addColorStop(0.7, '#5F9EA0'); // Cadet blue
+                gradient.addColorStop(1, '#2F4F4F'); // Dark slate gray
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Bubbles
-            const bubbleCount = Math.floor(canvas.width / 40);
-            for (let i = 0; i < bubbleCount; i++) {
-                const bubbleX = (game.time * 0.5 + i * 40) % (canvas.width + 20);
-                const bubbleY = 50 + Math.sin(game.time * 0.05 + i) * 30 + (i % 10) * (canvas.height / 10);
-                const size = 2 + (i % 3);
+                // Shallow water sand - lighter and more visible
+                const sandHeight = canvas.height * 0.25; // More sand visible
+                const sandY = canvas.height - sandHeight;
 
-                ctx.fillStyle = 'rgba(173, 216, 230, 0.6)';
-                ctx.fillRect(Math.floor(bubbleX), Math.floor(bubbleY), size, size);
+                // Lighter sand base layer
+                ctx.fillStyle = '#F5DEB3'; // Wheat color
+                ctx.fillRect(0, sandY, canvas.width, sandHeight);
+
+                // Sand texture with subtle wave pattern
+                ctx.fillStyle = '#DEB887'; // Burlywood
+                for (let i = 0; i < canvas.width; i += 8) {
+                    const waveHeight = Math.sin(i * 0.01 + game.time * 0.005) * 3;
+                    ctx.fillRect(i, sandY + waveHeight, 8, sandHeight - waveHeight);
+                }
+
+                // Sand details and particles
+                ctx.fillStyle = '#D2B48C'; // Tan
+                for (let i = 0; i < canvas.width; i += 12) {
+                    for (let j = 0; j < 7; j++) {
+                        const seed = i * 1000 + j;
+                        const particleX = i + (seed % 12);
+                        const particleY = sandY + 3 + ((seed * 7) % (sandHeight - 10));
+                        const size = 1 + ((seed * 3) % 4);
+                        ctx.fillRect(Math.floor(particleX), Math.floor(particleY), size, size);
+                    }
+                }
+
+                // More visible bubbles for shallow water
+                const bubbleCount = Math.floor(canvas.width / 30);
+                for (let i = 0; i < bubbleCount; i++) {
+                    const bubbleX = (game.time * 0.7 + i * 30) % (canvas.width + 20);
+                    const bubbleY = 30 + Math.sin(game.time * 0.07 + i) * 20 + (i % 8) * (canvas.height / 8);
+                    const size = 3 + (i % 4);
+
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; // More opaque bubbles
+                    ctx.fillRect(Math.floor(bubbleX), Math.floor(bubbleY), size, size);
+                }
+            } else {
+                // Deep water gradient (original)
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#000080');
+                gradient.addColorStop(0.5, '#003080');
+                gradient.addColorStop(1, '#004080');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw sand on ocean floor
+                const sandHeight = canvas.height * 0.15;
+                const sandY = canvas.height - sandHeight;
+
+                // Sand base layer
+                ctx.fillStyle = '#F4A460';
+                ctx.fillRect(0, sandY, canvas.width, sandHeight);
+
+                // Sand texture with subtle wave pattern
+                ctx.fillStyle = '#DEB887';
+                for (let i = 0; i < canvas.width; i += 8) {
+                    const waveHeight = Math.sin(i * 0.01 + game.time * 0.005) * 2;
+                    ctx.fillRect(i, sandY + waveHeight, 8, sandHeight - waveHeight);
+                }
+
+                // Static sand details and particles
+                ctx.fillStyle = '#CD853F';
+                for (let i = 0; i < canvas.width; i += 16) {
+                    for (let j = 0; j < 5; j++) {
+                        const seed = i * 1000 + j;
+                        const particleX = i + (seed % 16);
+                        const particleY = sandY + 5 + ((seed * 7) % (sandHeight - 15));
+                        const size = 1 + ((seed * 3) % 3);
+                        ctx.fillRect(Math.floor(particleX), Math.floor(particleY), size, size);
+                    }
+                }
+
+                // Sand ridge pattern for more texture
+                ctx.fillStyle = '#D2B48C';
+                for (let i = 0; i < canvas.width; i += 24) {
+                    const ridgeHeight = 2 + Math.sin(i * 0.05) * 1;
+                    ctx.fillRect(i, sandY + 3, 16, ridgeHeight);
+                }
+
+                // Bubbles
+                const bubbleCount = Math.floor(canvas.width / 40);
+                for (let i = 0; i < bubbleCount; i++) {
+                    const bubbleX = (game.time * 0.5 + i * 40) % (canvas.width + 20);
+                    const bubbleY = 50 + Math.sin(game.time * 0.05 + i) * 30 + (i % 10) * (canvas.height / 10);
+                    const size = 2 + (i % 3);
+
+                    ctx.fillStyle = 'rgba(173, 216, 230, 0.6)';
+                    ctx.fillRect(Math.floor(bubbleX), Math.floor(bubbleY), size, size);
+                }
             }
         }
 
@@ -500,16 +1046,14 @@
 
             // Update
             updatePlayer();
-            updatePearls();
             updateJellyfish();
-            updateTreasure();
+            updateBossJellyfish();
 
             // Draw
             drawBackground();
             drawSeaweed();
-            drawTreasure();
-            drawPearls();
             drawJellyfish();
+            drawBossJellyfish();
             drawPlayer();
 
             requestAnimationFrame(gameLoop);
