@@ -151,13 +151,14 @@
         <div>Mouse: Look</div>
         <div>Click: Shoot</div>
         <div>R: Reload</div>
+        <div>H: Heal</div>
         <div>Shift: Sprint</div>
         <div>ESC: Level Menu</div>
     </div>
     
     <div id="gameOver">
         <div id="gameOverText">GAME OVER</div>
-        <div style="font-size: 24px; margin-top: 20px;">Press F5 to restart</div>
+        <div style="font-size: 24px; margin-top: 20px;">Press O to restart</div>
     </div>
     
     <div id="levelMenu">
@@ -215,7 +216,11 @@
             shootCooldown: 0,
             bobOffset: 0,
             bobSpeed: 0,
-            damageFlash: 0
+            damageFlash: 0,
+            healingActive: false,
+            healingTimer: 0,
+            healingDuration: 60, // 1 second at 60fps
+            healAmount: 50
         };
         
         // 3D World maps for different levels
@@ -802,6 +807,35 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
             
+            // Healing effect
+            if (player.healingActive) {
+                const healIntensity = Math.sin(player.healingTimer / 10) * 0.3 + 0.3; // Pulsing green effect
+                ctx.fillStyle = `rgba(0, 255, 0, ${healIntensity * 0.3})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Healing progress bar
+                const barWidth = canvas.width * 0.3;
+                const barHeight = 20;
+                const barX = (canvas.width - barWidth) / 2;
+                const barY = canvas.height * 0.7;
+                
+                // Background bar
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4);
+                
+                // Progress bar
+                const progress = player.healingTimer / player.healingDuration;
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+                
+                // Text
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '16px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('HEALING...', canvas.width / 2, barY - 10);
+                ctx.textAlign = 'left';
+            }
+            
             // Level transition effect
             if (levelTransition) {
                 const alpha = Math.sin(transitionTimer / 30) * 0.5 + 0.5;
@@ -849,6 +883,16 @@
             
             if (e.code === 'KeyR') {
                 reload();
+            }
+            
+            // H key to heal
+            if (e.code === 'KeyH') {
+                startHealing();
+            }
+            
+            // O key to restart game when game over
+            if (e.code === 'KeyO' && !gameRunning) {
+                location.reload();
             }
             
             // ESC key to open level menu
@@ -917,6 +961,22 @@
             if (player.damageFlash > 0) {
                 player.damageFlash--;
             }
+            
+            // Update healing
+            if (player.healingActive) {
+                player.healingTimer++;
+                
+                // Gradually heal the player
+                const healPerFrame = player.healAmount / player.healingDuration;
+                player.health = Math.min(100, player.health + healPerFrame);
+                
+                // Complete healing
+                if (player.healingTimer >= player.healingDuration) {
+                    player.healingActive = false;
+                    player.healingTimer = 0;
+                    playSound(600, 0.5, 'sine', 0.15); // Healing complete sound
+                }
+            }
         }
         
         function checkWallCollision(x, y) {
@@ -969,6 +1029,15 @@
             player.totalAmmo -= available;
             
             playSound(400, 0.5, 'triangle', 0.1);
+        }
+        
+        // Healing function
+        function startHealing() {
+            if (player.healingActive || player.health >= 100) return;
+            
+            player.healingActive = true;
+            player.healingTimer = 0;
+            playSound(500, 0.3, 'sine', 0.1); // Healing start sound
         }
         
         // Update UI
