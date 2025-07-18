@@ -25,14 +25,50 @@
             image-rendering: pixelated;
         }
         
-        #ui {
+        #healthBar {
             position: absolute;
-            bottom: 20px;
+            top: 20px;
             left: 20px;
-            color: #ff0000;
-            font-size: 18px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            width: 300px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #666;
+            border-radius: 15px;
             z-index: 100;
+            overflow: hidden;
+        }
+        
+        #healthFill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000);
+            border-radius: 12px;
+            transition: width 0.3s ease;
+            width: 100%;
+        }
+        
+        #healthText {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 101;
+        }
+        
+        #damageIndicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle, transparent 30%, rgba(255, 0, 0, 0.3) 70%);
+            pointer-events: none;
+            z-index: 75;
+            opacity: 0;
+            transition: opacity 0.2s ease;
         }
         
         #crosshair {
@@ -72,6 +108,54 @@
             text-align: center;
         }
         
+        #levelMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #ff0000;
+            border-radius: 10px;
+            padding: 30px;
+            color: #ffffff;
+            font-size: 18px;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            max-width: 600px;
+        }
+        
+        .level-button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 15px;
+            background: #333;
+            border: 2px solid #666;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .level-button:hover {
+            background: #555;
+            border-color: #ff0000;
+            transform: scale(1.05);
+        }
+        
+        .level-locked {
+            background: #222 !important;
+            color: #666 !important;
+            border-color: #444 !important;
+            cursor: not-allowed !important;
+        }
+        
+        .level-locked:hover {
+            transform: none !important;
+        }
+        
         #flashlight {
             position: fixed;
             top: 0;
@@ -82,20 +166,131 @@
             pointer-events: none;
             z-index: 50;
         }
+        
+        #ammoCounter {
+            position: absolute;
+            top: 130px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #ffaa00;
+            border-radius: 10px;
+            padding: 15px 20px;
+            color: #ffaa00;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+            min-width: 150px;
+            text-align: center;
+        }
+        
+        #ammoIcon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        #enemyTracker {
+            position: absolute;
+            top: 210px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #ff4444;
+            border-radius: 10px;
+            padding: 15px 20px;
+            color: #ff4444;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+            min-width: 150px;
+            text-align: center;
+        }
+        
+        #enemyIcon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        #weaponDisplay {
+            position: absolute;
+            top: 290px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #00aaff;
+            border-radius: 10px;
+            padding: 15px 20px;
+            color: #00aaff;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+            min-width: 150px;
+            text-align: center;
+        }
+        
+        #weaponIcon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        #scoreDisplay {
+            position: absolute;
+            top: 370px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #00ff44;
+            border-radius: 10px;
+            padding: 15px 20px;
+            color: #00ff44;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+            min-width: 150px;
+            text-align: center;
+        }
+        
+        #scoreIcon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            display: block;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     
+    <div id="healthBar">
+        <div id="healthFill"></div>
+        <div id="healthText">100 / 100</div>
+    </div>
+    
+    <div id="ammoCounter">
+        <span id="ammoIcon">🔫</span>
+        <div id="ammoDisplay">30 / 90</div>
+    </div>
+    
+    <div id="enemyTracker">
+        <span id="enemyIcon">💀</span>
+        <div id="enemyDisplay">5 LEFT</div>
+    </div>
+    
+    <div id="weaponDisplay">
+        <span id="weaponIcon">🔫</span>
+        <div id="currentWeapon">PISTOL</div>
+    </div>
+    
+    <div id="scoreDisplay">
+        <span id="scoreIcon">🎯</span>
+        <div id="currentScore">0</div>
+    </div>
+    
     <div id="crosshair"></div>
     <div id="flashlight"></div>
-    
-    <div id="ui">
-        <div>Health: <span id="health">100</span></div>
-        <div>Ammo: <span id="ammo">30</span>/90</div>
-        <div>Score: <span id="score">0</span></div>
-        <div>Enemies: <span id="enemyCount">5</span></div>
-    </div>
+    <div id="damageIndicator"></div>
     
     <div id="instructions">
         <div>WASD: Move</div>
@@ -110,6 +305,39 @@
         <div id="gameOverText">GAME OVER</div>
         <div style="font-size: 24px; margin-top: 20px;">Press F5 to restart</div>
     </div>
+    
+    <div id="levelMenu">
+        <h2 style="color: #ff0000; margin-bottom: 20px;">🎯 SELECT NEXT LEVEL 🎯</h2>
+        <div id="levelButtons">
+            <button class="level-button" onclick="selectLevel(1)">
+                <strong>🏰 CASTLE SIEGE</strong><br>
+                <small>Dark stone corridors • Armored Knights • Medieval theme</small>
+            </button>
+            <button class="level-button" onclick="selectLevel(2)">
+                <strong>🌲 FOREST NIGHTMARE</strong><br>
+                <small>Dense woods • Wild Beasts • Nature theme</small>
+            </button>
+            <button class="level-button" onclick="selectLevel(3)">
+                <strong>🏭 INDUSTRIAL COMPLEX</strong><br>
+                <small>Metal structures • Robot Guards • Tech theme</small>
+            </button>
+            <button class="level-button" onclick="selectLevel(4)">
+                <strong>🔥 INFERNAL DEPTHS</strong><br>
+                <small>Lava caves • Fire Demons • Hell theme</small>
+            </button>
+            <button class="level-button" onclick="selectLevel(5)">
+                <strong>❄️ FROZEN WASTELAND</strong><br>
+                <small>Ice caverns • Ice Golems • Arctic theme</small>
+            </button>
+            <button class="level-button" onclick="selectLevel(6)">
+                <strong>🌌 VOID DIMENSION</strong><br>
+                <small>Purple portals • Shadow Wraiths • Cosmic theme</small>
+            </button>
+        </div>
+        <div style="margin-top: 20px; font-size: 14px; color: #888;">
+            Complete levels to unlock more areas!
+        </div>
+    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -120,6 +348,84 @@
         let mouseX = 0;
         let mouseY = 0;
         let keys = {};
+        let currentLevel = 1;
+        let unlockedLevels = [1]; // Start with level 1 unlocked
+        
+        // Level definitions
+        const levels = {
+            1: {
+                name: "Castle Siege",
+                theme: "medieval",
+                backgroundColor: '#222222',
+                wallColor: '#666666',
+                enemyType: 'knight',
+                enemyCount: 5,
+                enemyHealth: 30,
+                enemySpeed: 1,
+                enemyColor: '#8B4513'
+            },
+            2: {
+                name: "Forest Nightmare", 
+                theme: "forest",
+                backgroundColor: '#0d2818',
+                wallColor: '#1a4d2e',
+                enemyType: 'beast',
+                enemyCount: 7,
+                enemyHealth: 25,
+                enemySpeed: 1.5,
+                enemyColor: '#654321'
+            },
+            3: {
+                name: "Industrial Complex",
+                theme: "tech", 
+                backgroundColor: '#1a1a2e',
+                wallColor: '#16213e',
+                enemyType: 'robot',
+                enemyCount: 6,
+                enemyHealth: 40,
+                enemySpeed: 0.8,
+                enemyColor: '#C0C0C0'
+            },
+            4: {
+                name: "Infernal Depths",
+                theme: "hell",
+                backgroundColor: '#2d0a0a',
+                wallColor: '#5d1a1a', 
+                enemyType: 'demon',
+                enemyCount: 8,
+                enemyHealth: 35,
+                enemySpeed: 1.2,
+                enemyColor: '#8B0000'
+            },
+            5: {
+                name: "Frozen Wasteland",
+                theme: "ice",
+                backgroundColor: '#0a1a2d',
+                wallColor: '#1a3d5d',
+                enemyType: 'golem',
+                enemyCount: 6,
+                enemyHealth: 50,
+                enemySpeed: 0.7,
+                enemyColor: '#87CEEB'
+            },
+            6: {
+                name: "Void Dimension",
+                theme: "cosmic",
+                backgroundColor: '#1a0a2d',
+                wallColor: '#3d1a5d',
+                enemyType: 'wraith',
+                enemyCount: 6, // Regular enemies
+                enemyHealth: 20,
+                enemySpeed: 2,
+                enemyColor: '#9370DB',
+                hasBoss: true,
+                bossHealth: 300,
+                bossSize: 60,
+                bossSpeed: 1.5,
+                bossColor: '#FF1493',
+                bossName: 'VOID OVERLORD'
+            }
+        };
         
         // Player state
         const player = {
@@ -169,26 +475,213 @@
         const world = {
             width: 1600,
             height: 1200,
-            walls: [
+            walls: []
+        };
+        
+        // Level-specific wall layouts
+        const levelLayouts = {
+            1: [ // Castle Siege - Medieval fortress layout with courtyards
                 // Outer walls
                 {x: 0, y: 0, width: 1600, height: 50},
                 {x: 0, y: 0, width: 50, height: 1200},
                 {x: 1550, y: 0, width: 50, height: 1200},
                 {x: 0, y: 1150, width: 1600, height: 50},
                 
-                // Inner maze walls
-                {x: 200, y: 200, width: 200, height: 50},
-                {x: 500, y: 100, width: 50, height: 200},
-                {x: 700, y: 200, width: 200, height: 50},
-                {x: 1000, y: 100, width: 50, height: 300},
-                {x: 1200, y: 300, width: 200, height: 50},
-                {x: 200, y: 500, width: 300, height: 50},
-                {x: 600, y: 400, width: 50, height: 200},
-                {x: 800, y: 600, width: 200, height: 50},
-                {x: 1100, y: 500, width: 300, height: 50},
-                {x: 300, y: 800, width: 50, height: 200},
-                {x: 700, y: 900, width: 200, height: 50},
-                {x: 1200, y: 800, width: 50, height: 200},
+                // Castle keep (center fortress)
+                {x: 650, y: 450, width: 300, height: 50},  // Top wall
+                {x: 650, y: 700, width: 300, height: 50},  // Bottom wall
+                {x: 650, y: 450, width: 50, height: 300},  // Left wall
+                {x: 900, y: 450, width: 50, height: 300},  // Right wall
+                
+                // Outer courtyards
+                {x: 200, y: 200, width: 300, height: 50},
+                {x: 1100, y: 200, width: 300, height: 50},
+                {x: 200, y: 950, width: 300, height: 50},
+                {x: 1100, y: 950, width: 300, height: 50},
+                
+                // Guard towers (corners)
+                {x: 150, y: 150, width: 100, height: 100},
+                {x: 1350, y: 150, width: 100, height: 100},
+                {x: 150, y: 950, width: 100, height: 100},
+                {x: 1350, y: 950, width: 100, height: 100},
+                
+                // Connecting walls
+                {x: 300, y: 400, width: 50, height: 200},
+                {x: 1250, y: 400, width: 50, height: 200},
+                {x: 500, y: 300, width: 200, height: 50},
+                {x: 900, y: 300, width: 200, height: 50}
+            ],
+            
+            2: [ // Forest Nightmare - Organic, winding paths
+                // Outer walls
+                {x: 0, y: 0, width: 1600, height: 50},
+                {x: 0, y: 0, width: 50, height: 1200},
+                {x: 1550, y: 0, width: 50, height: 1200},
+                {x: 0, y: 1150, width: 1600, height: 50},
+                
+                // Tree clusters (irregular shapes)
+                {x: 200, y: 150, width: 120, height: 180},
+                {x: 280, y: 300, width: 80, height: 120},
+                {x: 450, y: 180, width: 150, height: 100},
+                {x: 750, y: 120, width: 200, height: 160},
+                {x: 1100, y: 200, width: 180, height: 140},
+                {x: 1300, y: 350, width: 120, height: 200},
+                
+                // Dense forest areas
+                {x: 180, y: 500, width: 160, height: 80},
+                {x: 300, y: 550, width: 100, height: 150},
+                {x: 500, y: 480, width: 140, height: 120},
+                {x: 700, y: 520, width: 180, height: 100},
+                {x: 950, y: 450, width: 200, height: 180},
+                {x: 1200, y: 580, width: 160, height: 140},
+                
+                // Bottom forest
+                {x: 150, y: 800, width: 220, height: 120},
+                {x: 450, y: 850, width: 180, height: 160},
+                {x: 700, y: 820, width: 150, height: 100},
+                {x: 950, y: 880, width: 200, height: 140},
+                {x: 1250, y: 780, width: 180, height: 180}
+            ],
+            
+            3: [ // Industrial Complex - Grid-like factory layout
+                // Outer walls
+                {x: 0, y: 0, width: 1600, height: 50},
+                {x: 0, y: 0, width: 50, height: 1200},
+                {x: 1550, y: 0, width: 50, height: 1200},
+                {x: 0, y: 1150, width: 1600, height: 50},
+                
+                // Factory sections (rectangular grid)
+                {x: 200, y: 200, width: 300, height: 200},
+                {x: 600, y: 200, width: 400, height: 150},
+                {x: 1100, y: 200, width: 300, height: 250},
+                
+                // Assembly lines (long corridors)
+                {x: 150, y: 500, width: 400, height: 80},
+                {x: 650, y: 450, width: 80, height: 200},
+                {x: 800, y: 500, width: 500, height: 80},
+                
+                // Storage areas
+                {x: 200, y: 700, width: 200, height: 200},
+                {x: 500, y: 750, width: 150, height: 150},
+                {x: 750, y: 700, width: 200, height: 180},
+                {x: 1050, y: 720, width: 250, height: 200},
+                
+                // Machinery blocks
+                {x: 400, y: 350, width: 100, height: 80},
+                {x: 850, y: 320, width: 120, height: 100},
+                {x: 1200, y: 480, width: 150, height: 120},
+                {x: 300, y: 950, width: 120, height: 100},
+                {x: 600, y: 980, width: 180, height: 80}
+            ],
+            
+            4: [ // Infernal Depths - Chaotic lava chamber layout
+                // Outer walls
+                {x: 0, y: 0, width: 1600, height: 50},
+                {x: 0, y: 0, width: 50, height: 1200},
+                {x: 1550, y: 0, width: 50, height: 1200},
+                {x: 0, y: 1150, width: 1600, height: 50},
+                
+                // Lava pools (irregular caverns)
+                {x: 250, y: 180, width: 200, height: 150},
+                {x: 180, y: 300, width: 120, height: 200},
+                {x: 500, y: 150, width: 180, height: 180},
+                {x: 750, y: 200, width: 250, height: 120},
+                {x: 1150, y: 180, width: 200, height: 200},
+                
+                // Rock formations
+                {x: 350, y: 450, width: 150, height: 100},
+                {x: 200, y: 550, width: 100, height: 150},
+                {x: 600, y: 400, width: 200, height: 80},
+                {x: 900, y: 450, width: 120, height: 180},
+                {x: 1200, y: 420, width: 180, height: 120},
+                
+                // Hell caverns
+                {x: 150, y: 750, width: 180, height: 200},
+                {x: 400, y: 800, width: 220, height: 150},
+                {x: 700, y: 750, width: 150, height: 180},
+                {x: 950, y: 780, width: 200, height: 200},
+                {x: 1250, y: 720, width: 150, height: 250},
+                
+                // Connecting bridges
+                {x: 450, y: 580, width: 300, height: 40},
+                {x: 800, y: 650, width: 40, height: 100}
+            ],
+            
+            5: [ // Frozen Wasteland - Ice cavern maze
+                // Outer walls
+                {x: 0, y: 0, width: 1600, height: 50},
+                {x: 0, y: 0, width: 50, height: 1200},
+                {x: 1550, y: 0, width: 50, height: 1200},
+                {x: 0, y: 1150, width: 1600, height: 50},
+                
+                // Ice formations (crystalline shapes)
+                {x: 200, y: 150, width: 100, height: 200},
+                {x: 250, y: 200, width: 200, height: 100},
+                {x: 500, y: 120, width: 150, height: 250},
+                {x: 750, y: 180, width: 200, height: 150},
+                {x: 1050, y: 150, width: 120, height: 180},
+                {x: 1250, y: 200, width: 200, height: 120},
+                
+                // Frozen corridors
+                {x: 150, y: 450, width: 200, height: 60},
+                {x: 300, y: 400, width: 60, height: 200},
+                {x: 450, y: 500, width: 250, height: 80},
+                {x: 800, y: 420, width: 80, height: 180},
+                {x: 950, y: 480, width: 300, height: 60},
+                {x: 1200, y: 400, width: 60, height: 200},
+                
+                // Ice caves
+                {x: 180, y: 700, width: 180, height: 120},
+                {x: 450, y: 750, width: 150, height: 180},
+                {x: 700, y: 720, width: 200, height: 150},
+                {x: 1000, y: 780, width: 180, height: 200},
+                {x: 1300, y: 720, width: 150, height: 160},
+                
+                // Stalactites/stalagmites
+                {x: 350, y: 350, width: 40, height: 40},
+                {x: 600, y: 380, width: 60, height: 60},
+                {x: 900, y: 350, width: 40, height: 80},
+                {x: 1150, y: 620, width: 50, height: 50}
+            ],
+            
+            6: [ // Void Dimension - Abstract, portal-based layout
+                // Outer walls
+                {x: 0, y: 0, width: 1600, height: 50},
+                {x: 0, y: 0, width: 50, height: 1200},
+                {x: 1550, y: 0, width: 50, height: 1200},
+                {x: 0, y: 1150, width: 1600, height: 50},
+                
+                // Floating platforms
+                {x: 200, y: 200, width: 150, height: 150},
+                {x: 450, y: 150, width: 200, height: 100},
+                {x: 750, y: 180, width: 120, height: 180},
+                {x: 950, y: 120, width: 180, height: 120},
+                {x: 1200, y: 200, width: 200, height: 150},
+                
+                // Void barriers (strange geometric shapes)
+                {x: 300, y: 400, width: 80, height: 150},
+                {x: 400, y: 350, width: 150, height: 80},
+                {x: 600, y: 400, width: 100, height: 200},
+                {x: 800, y: 450, width: 200, height: 100},
+                {x: 1100, y: 380, width: 120, height: 180},
+                {x: 1300, y: 420, width: 100, height: 150},
+                
+                // Portal chambers
+                {x: 150, y: 650, width: 200, height: 200},
+                {x: 450, y: 700, width: 150, height: 150},
+                {x: 700, y: 680, width: 180, height: 180},
+                {x: 950, y: 720, width: 200, height: 160},
+                {x: 1250, y: 650, width: 180, height: 200},
+                
+                // Cosmic anomalies (irregular void spaces)
+                {x: 350, y: 580, width: 60, height: 60},
+                {x: 550, y: 550, width: 80, height: 80},
+                {x: 850, y: 600, width: 70, height: 70},
+                {x: 1150, y: 580, width: 60, height: 90},
+                
+                // Dimensional rifts
+                {x: 400, y: 900, width: 300, height: 50},
+                {x: 800, y: 920, width: 400, height: 60}
             ]
         };
         
@@ -236,17 +729,20 @@
         
         // Enemy class
         class Enemy {
-            constructor(x, y) {
+            constructor(x, y, levelConfig) {
                 this.x = x;
                 this.y = y;
                 this.angle = Math.random() * Math.PI * 2;
-                this.health = 30;
-                this.speed = 1;
+                this.health = levelConfig.enemyHealth;
+                this.maxHealth = levelConfig.enemyHealth;
+                this.speed = levelConfig.enemySpeed;
                 this.attackCooldown = 0;
                 this.size = 20;
                 this.aggroRange = 200;
                 this.attackRange = 50;
                 this.lastSeen = 0;
+                this.type = levelConfig.enemyType;
+                this.color = levelConfig.enemyColor;
             }
             
             update() {
@@ -310,6 +806,9 @@
                 player.health -= 15;
                 playSound(150, 0.2, 'sawtooth');
                 
+                // Show damage indicator
+                showDamageIndicator();
+                
                 // Add blood particles
                 for (let i = 0; i < 5; i++) {
                     particles.push({
@@ -340,6 +839,138 @@
                         vy: (Math.random() - 0.5) * 6,
                         life: 20,
                         color: '#ffff00'
+                    });
+                }
+            }
+        }
+        
+        // Boss class (extends Enemy)
+        class Boss extends Enemy {
+            constructor(x, y, levelConfig) {
+                super(x, y, levelConfig);
+                this.health = levelConfig.bossHealth;
+                this.maxHealth = levelConfig.bossHealth;
+                this.size = levelConfig.bossSize;
+                this.speed = levelConfig.bossSpeed;
+                this.color = levelConfig.bossColor;
+                this.type = 'boss';
+                this.name = levelConfig.bossName;
+                this.attackCooldown = 0;
+                this.specialAttackCooldown = 0;
+                this.aggroRange = 400; // Larger aggro range
+                this.attackRange = 80; // Larger attack range
+                this.attackDamage = 25; // More damage
+                this.phase = 1; // Boss phases
+            }
+            
+            update() {
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Update phase based on health
+                if (this.health < this.maxHealth * 0.5 && this.phase === 1) {
+                    this.phase = 2;
+                    this.speed *= 1.3; // Faster in phase 2
+                    this.attackDamage = 35; // More damage in phase 2
+                }
+                
+                // Check if player is in range
+                if (distance < this.aggroRange) {
+                    this.lastSeen = Date.now();
+                    
+                    // Move towards player
+                    if (distance > this.attackRange) {
+                        const moveX = (dx / distance) * this.speed;
+                        const moveY = (dy / distance) * this.speed;
+                        
+                        // Check collision before moving
+                        if (!this.checkWallCollision(this.x + moveX, this.y)) {
+                            this.x += moveX;
+                        }
+                        if (!this.checkWallCollision(this.x, this.y + moveY)) {
+                            this.y += moveY;
+                        }
+                    }
+                    
+                    // Regular attack
+                    if (distance < this.attackRange && this.attackCooldown <= 0) {
+                        this.attackPlayer();
+                        this.attackCooldown = 45; // Faster attacks than regular enemies
+                    }
+                    
+                    // Special attack in phase 2
+                    if (this.phase === 2 && this.specialAttackCooldown <= 0) {
+                        this.specialAttack();
+                        this.specialAttackCooldown = 180; // Every 3 seconds
+                    }
+                }
+                
+                if (this.attackCooldown > 0) {
+                    this.attackCooldown--;
+                }
+                if (this.specialAttackCooldown > 0) {
+                    this.specialAttackCooldown--;
+                }
+            }
+            
+            attackPlayer() {
+                player.health -= this.attackDamage;
+                playSound(100, 0.3, 'sawtooth'); // Deeper sound for boss
+                
+                // Show damage indicator
+                showDamageIndicator();
+                
+                // Add more blood particles for boss attack
+                for (let i = 0; i < 8; i++) {
+                    particles.push({
+                        x: player.x,
+                        y: player.y,
+                        vx: (Math.random() - 0.5) * 6,
+                        vy: (Math.random() - 0.5) * 6,
+                        life: 40,
+                        color: '#ff0000'
+                    });
+                }
+                
+                if (player.health <= 0) {
+                    gameOver();
+                }
+            }
+            
+            specialAttack() {
+                // Void blast - creates damaging particles around the boss
+                playSound(80, 0.5, 'square');
+                
+                for (let i = 0; i < 12; i++) {
+                    const angle = (i / 12) * Math.PI * 2;
+                    const speed = 4;
+                    particles.push({
+                        x: this.x,
+                        y: this.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 60,
+                        color: '#FF1493',
+                        damage: 15,
+                        isProjectile: true
+                    });
+                }
+            }
+            
+            takeDamage(damage) {
+                this.health -= damage;
+                playSound(150, 0.2, 'square'); // Different sound for boss damage
+                
+                // Add damage particles
+                for (let i = 0; i < 5; i++) {
+                    particles.push({
+                        x: this.x + (Math.random() - 0.5) * this.size,
+                        y: this.y + (Math.random() - 0.5) * this.size,
+                        vx: (Math.random() - 0.5) * 8,
+                        vy: (Math.random() - 0.5) * 8,
+                        life: 30,
+                        color: this.phase === 1 ? '#ffff00' : '#ff00ff'
                     });
                 }
             }
@@ -396,17 +1027,25 @@
                         
                         if (enemy.health <= 0) {
                             enemies.splice(i, 1);
-                            player.score += 100;
                             
-                            // Death particles
-                            for (let j = 0; j < 10; j++) {
+                            // Give bonus points for boss
+                            if (enemy.type === 'boss') {
+                                player.score += 1000; // Big bonus for boss
+                                playSound(1200, 1, 'sine'); // Special boss death sound
+                            } else {
+                                player.score += 100;
+                            }
+                            
+                            // Death particles (more for boss)
+                            const particleCount = enemy.type === 'boss' ? 25 : 10;
+                            for (let j = 0; j < particleCount; j++) {
                                 particles.push({
-                                    x: enemy.x,
-                                    y: enemy.y,
-                                    vx: (Math.random() - 0.5) * 8,
-                                    vy: (Math.random() - 0.5) * 8,
-                                    life: 40,
-                                    color: '#ff0000'
+                                    x: enemy.x + (Math.random() - 0.5) * enemy.size,
+                                    y: enemy.y + (Math.random() - 0.5) * enemy.size,
+                                    vx: (Math.random() - 0.5) * (enemy.type === 'boss' ? 12 : 8),
+                                    vy: (Math.random() - 0.5) * (enemy.type === 'boss' ? 12 : 8),
+                                    life: enemy.type === 'boss' ? 60 : 40,
+                                    color: enemy.type === 'boss' ? '#FF1493' : '#ff0000'
                                 });
                             }
                         }
@@ -416,10 +1055,63 @@
             }
         }
         
+        // Load level layout
+        function loadLevelLayout() {
+            world.walls = levelLayouts[currentLevel] || levelLayouts[1];
+        }
+        
+        // Find safe spawn position
+        function findSafeSpawnPosition() {
+            let x, y;
+            let attempts = 0;
+            const playerSize = 15;
+            
+            do {
+                x = Math.random() * (world.width - 200) + 100;
+                y = Math.random() * (world.height - 200) + 100;
+                attempts++;
+            } while (checkWallCollision(x, y, playerSize) && attempts < 200);
+            
+            // If we can't find a safe spawn after many attempts, use fallback positions
+            if (attempts >= 200) {
+                const fallbackPositions = [
+                    {x: 100, y: 100},
+                    {x: world.width - 100, y: 100},
+                    {x: 100, y: world.height - 100},
+                    {x: world.width - 100, y: world.height - 100},
+                    {x: world.width / 2, y: 100},
+                    {x: world.width / 2, y: world.height - 100},
+                    {x: 100, y: world.height / 2},
+                    {x: world.width - 100, y: world.height / 2}
+                ];
+                
+                for (let pos of fallbackPositions) {
+                    if (!checkWallCollision(pos.x, pos.y, playerSize)) {
+                        return pos;
+                    }
+                }
+                
+                // Ultimate fallback - center of map
+                return {x: world.width / 2, y: world.height / 2};
+            }
+            
+            return {x, y};
+        }
+        
         // Initialize enemies
         function spawnEnemies() {
             enemies = [];
-            for (let i = 0; i < enemyCount; i++) {
+            const levelConfig = levels[currentLevel];
+            
+            // Load the appropriate level layout
+            loadLevelLayout();
+            
+            // Set player to safe spawn position
+            const safeSpawn = findSafeSpawnPosition();
+            player.x = safeSpawn.x;
+            player.y = safeSpawn.y;
+            
+            for (let i = 0; i < levelConfig.enemyCount; i++) {
                 let x, y;
                 let attempts = 0;
                 
@@ -430,7 +1122,23 @@
                 } while (checkWallCollision(x, y, 20) && attempts < 100);
                 
                 if (attempts < 100) {
-                    enemies.push(new Enemy(x, y));
+                    enemies.push(new Enemy(x, y, levelConfig));
+                }
+            }
+            
+            // Spawn boss if this level has one
+            if (levelConfig.hasBoss) {
+                let bossX, bossY;
+                let bossAttempts = 0;
+                
+                do {
+                    bossX = Math.random() * (world.width - 200) + 100;
+                    bossY = Math.random() * (world.height - 200) + 100;
+                    bossAttempts++;
+                } while (checkWallCollision(bossX, bossY, levelConfig.bossSize) && bossAttempts < 100);
+                
+                if (bossAttempts < 100) {
+                    enemies.push(new Boss(bossX, bossY, levelConfig));
                 }
             }
         }
@@ -579,6 +1287,46 @@
                 particle.vy *= 0.95;
                 particle.life--;
                 
+                // Check if this is a damaging projectile from boss
+                if (particle.isProjectile && particle.damage) {
+                    const dx = particle.x - player.x;
+                    const dy = particle.y - player.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < 15) { // Hit player
+                        player.health -= particle.damage;
+                        showDamageIndicator();
+                        
+                        // Add impact particles
+                        for (let j = 0; j < 3; j++) {
+                            particles.push({
+                                x: player.x,
+                                y: player.y,
+                                vx: (Math.random() - 0.5) * 4,
+                                vy: (Math.random() - 0.5) * 4,
+                                life: 20,
+                                color: '#ff0000'
+                            });
+                        }
+                        
+                        particles.splice(i, 1);
+                        
+                        if (player.health <= 0) {
+                            gameOver();
+                        }
+                        continue;
+                    }
+                    
+                    // Check wall collision for projectiles
+                    for (let wall of world.walls) {
+                        if (particle.x < wall.x + wall.width && particle.x + 5 > wall.x &&
+                            particle.y < wall.y + wall.height && particle.y + 5 > wall.y) {
+                            particles.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
+                
                 if (particle.life <= 0) {
                     particles.splice(i, 1);
                 }
@@ -591,16 +1339,22 @@
             const cameraX = player.x - canvas.width / 2;
             const cameraY = player.y - canvas.height / 2;
             
-            // Clear screen with dark background
-            ctx.fillStyle = '#111111';
+            // Clear screen with level-specific background
+            const levelConfig = levels[currentLevel];
+            ctx.fillStyle = levelConfig.backgroundColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             ctx.save();
             ctx.translate(-cameraX, -cameraY);
             
-            // Draw walls
-            ctx.fillStyle = '#444444';
-            ctx.strokeStyle = '#666666';
+            // Draw walls with level-specific colors
+            ctx.fillStyle = levelConfig.wallColor;
+            ctx.strokeStyle = levelConfig.wallColor === '#666666' ? '#999999' :
+                            levelConfig.wallColor === '#1a4d2e' ? '#2d8040' :
+                            levelConfig.wallColor === '#16213e' ? '#2a3a5c' :
+                            levelConfig.wallColor === '#5d1a1a' ? '#8b2828' :
+                            levelConfig.wallColor === '#1a3d5d' ? '#285a8b' :
+                            '#5a2a8b';
             ctx.lineWidth = 2;
             for (let wall of world.walls) {
                 ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
@@ -613,32 +1367,121 @@
                 const dy = player.y - enemy.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Only draw if close enough (fog of war effect)
-                if (distance < 300) {
-                    ctx.fillStyle = '#ff0000';
-                    ctx.strokeStyle = '#aa0000';
-                    ctx.lineWidth = 2;
+                // Only draw if close enough (fog of war effect) - longer range for boss
+                const viewDistance = enemy.type === 'boss' ? 500 : 300;
+                if (distance < viewDistance) {
+                    ctx.fillStyle = enemy.color;
                     
-                    // Draw enemy as red circle
-                    ctx.beginPath();
-                    ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                    
-                    // Draw eyes
-                    ctx.fillStyle = '#ffff00';
-                    ctx.beginPath();
-                    ctx.arc(enemy.x - 6, enemy.y - 6, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(enemy.x + 6, enemy.y - 6, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    // Health bar
-                    ctx.fillStyle = '#ff0000';
-                    ctx.fillRect(enemy.x - 15, enemy.y - 30, 30, 4);
-                    ctx.fillStyle = '#00ff00';
-                    ctx.fillRect(enemy.x - 15, enemy.y - 30, (enemy.health / 30) * 30, 4);
+                    // Special boss rendering
+                    if (enemy.type === 'boss') {
+                        // Boss glow effect
+                        ctx.shadowColor = enemy.color;
+                        ctx.shadowBlur = 20;
+                        
+                        // Boss stroke color changes based on phase
+                        ctx.strokeStyle = enemy.phase === 1 ? '#FF69B4' : '#8A2BE2';
+                        ctx.lineWidth = 4;
+                        
+                        // Draw boss as large hexagon
+                        ctx.beginPath();
+                        for (let i = 0; i < 6; i++) {
+                            const angle = (i / 6) * Math.PI * 2;
+                            const x = enemy.x + Math.cos(angle) * enemy.size;
+                            const y = enemy.y + Math.sin(angle) * enemy.size;
+                            if (i === 0) {
+                                ctx.moveTo(x, y);
+                            } else {
+                                ctx.lineTo(x, y);
+                            }
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                        
+                        // Reset shadow
+                        ctx.shadowBlur = 0;
+                        
+                        // Boss eyes (larger and glowing)
+                        ctx.fillStyle = enemy.phase === 1 ? '#FF0000' : '#8A2BE2';
+                        ctx.beginPath();
+                        ctx.arc(enemy.x - 15, enemy.y - 15, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(enemy.x + 15, enemy.y - 15, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Boss health bar (larger)
+                        const barWidth = 80;
+                        const barHeight = 8;
+                        ctx.fillStyle = '#ff0000';
+                        ctx.fillRect(enemy.x - barWidth/2, enemy.y - enemy.size - 20, barWidth, barHeight);
+                        ctx.fillStyle = enemy.phase === 1 ? '#00ff00' : '#ffff00';
+                        ctx.fillRect(enemy.x - barWidth/2, enemy.y - enemy.size - 20, (enemy.health / enemy.maxHealth) * barWidth, barHeight);
+                        
+                        // Boss name
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = 'bold 16px Courier New';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(enemy.name, enemy.x, enemy.y - enemy.size - 30);
+                        
+                        // Phase indicator
+                        if (enemy.phase === 2) {
+                            ctx.fillStyle = '#ff0000';
+                            ctx.font = 'bold 14px Courier New';
+                            ctx.fillText('ENRAGED!', enemy.x, enemy.y + enemy.size + 20);
+                        }
+                        
+                    } else {
+                        // Regular enemy rendering
+                        ctx.strokeStyle = enemy.color === '#8B4513' ? '#654321' : 
+                                        enemy.color === '#654321' ? '#4a2c17' :
+                                        enemy.color === '#C0C0C0' ? '#808080' :
+                                        enemy.color === '#8B0000' ? '#660000' :
+                                        enemy.color === '#87CEEB' ? '#5f9ea0' :
+                                        '#663399';
+                        ctx.lineWidth = 2;
+                        
+                        // Draw different enemy shapes based on type
+                        ctx.beginPath();
+                        if (enemy.type === 'knight') {
+                            // Square for knights
+                            ctx.fillRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
+                            ctx.strokeRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
+                        } else if (enemy.type === 'robot') {
+                            // Diamond for robots
+                            ctx.moveTo(enemy.x, enemy.y - enemy.size);
+                            ctx.lineTo(enemy.x + enemy.size, enemy.y);
+                            ctx.lineTo(enemy.x, enemy.y + enemy.size);
+                            ctx.lineTo(enemy.x - enemy.size, enemy.y);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.stroke();
+                        } else {
+                            // Circle for others (beasts, demons, golems, wraiths)
+                            ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+                        
+                        // Draw eyes (different colors for different types)
+                        const eyeColor = enemy.type === 'demon' ? '#ff4400' :
+                                       enemy.type === 'wraith' ? '#bb88ff' :
+                                       enemy.type === 'golem' ? '#ffffff' :
+                                       '#ffff00';
+                        ctx.fillStyle = eyeColor;
+                        ctx.beginPath();
+                        ctx.arc(enemy.x - 6, enemy.y - 6, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(enemy.x + 6, enemy.y - 6, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Health bar
+                        ctx.fillStyle = '#ff0000';
+                        ctx.fillRect(enemy.x - 15, enemy.y - 30, 30, 4);
+                        ctx.fillStyle = '#00ff00';
+                        ctx.fillRect(enemy.x - 15, enemy.y - 30, (enemy.health / enemy.maxHealth) * 30, 4);
+                    }
                 }
             }
             
@@ -654,9 +1497,21 @@
             for (let particle of particles) {
                 ctx.fillStyle = particle.color;
                 ctx.globalAlpha = particle.life / 30;
-                ctx.beginPath();
-                ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
-                ctx.fill();
+                
+                if (particle.isProjectile) {
+                    // Draw boss projectiles as larger glowing orbs
+                    ctx.shadowColor = particle.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                } else {
+                    // Regular particles
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
             ctx.globalAlpha = 1;
             
@@ -680,25 +1535,116 @@
             ctx.restore();
         }
         
+        // Show damage indicator
+        function showDamageIndicator() {
+            const indicator = document.getElementById('damageIndicator');
+            indicator.style.opacity = '1';
+            setTimeout(() => {
+                indicator.style.opacity = '0';
+            }, 200);
+        }
+        
         // Update UI
         function updateUI() {
             const ammo = weaponAmmo[player.currentWeapon];
             const weapon = weapons[player.currentWeapon];
             
-            document.getElementById('health').textContent = Math.max(0, player.health);
-            document.getElementById('ammo').textContent = `${ammo.current}/${ammo.total}`;
-            document.getElementById('score').textContent = player.score;
-            document.getElementById('enemyCount').textContent = enemies.length;
-            document.getElementById('weapon').textContent = weapon.name;
-            
-            // Health bar color
+            // Update all UI elements
             const healthElement = document.getElementById('health');
-            if (player.health > 60) {
-                healthElement.style.color = '#00ff00';
-            } else if (player.health > 30) {
-                healthElement.style.color = '#ffff00';
-            } else {
-                healthElement.style.color = '#ff0000';
+            const ammoElement = document.getElementById('ammo');
+            const scoreElement = document.getElementById('score');
+            const enemyCountElement = document.getElementById('enemyCount');
+            const weaponElement = document.getElementById('weapon');
+            
+            if (healthElement) healthElement.textContent = Math.max(0, player.health);
+            if (ammoElement) ammoElement.textContent = `${ammo.current}/${ammo.total}`;
+            if (scoreElement) scoreElement.textContent = player.score;
+            if (enemyCountElement) enemyCountElement.textContent = enemies.length;
+            if (weaponElement) weaponElement.textContent = weapon.name;
+            
+            // Update new UI elements
+            const ammoDisplay = document.getElementById('ammoDisplay');
+            const enemyDisplay = document.getElementById('enemyDisplay');
+            const currentWeaponDisplay = document.getElementById('currentWeapon');
+            const weaponIcon = document.getElementById('weaponIcon');
+            const currentScore = document.getElementById('currentScore');
+            
+            if (ammoDisplay) {
+                ammoDisplay.textContent = `${ammo.current} / ${ammo.total}`;
+                // Change color based on ammo level
+                const ammoCounter = document.getElementById('ammoCounter');
+                if (ammo.current <= 0) {
+                    ammoCounter.style.borderColor = '#ff0000';
+                    ammoCounter.style.color = '#ff0000';
+                } else if (ammo.current <= weapon.maxAmmo * 0.3) {
+                    ammoCounter.style.borderColor = '#ffaa00';
+                    ammoCounter.style.color = '#ffaa00';
+                } else {
+                    ammoCounter.style.borderColor = '#ffaa00';
+                    ammoCounter.style.color = '#ffaa00';
+                }
+            }
+            
+            if (enemyDisplay) {
+                enemyDisplay.textContent = enemies.length === 1 ? '1 LEFT' : `${enemies.length} LEFT`;
+                // Change color based on enemy count
+                const enemyTracker = document.getElementById('enemyTracker');
+                if (enemies.length === 0) {
+                    enemyTracker.style.borderColor = '#00ff00';
+                    enemyTracker.style.color = '#00ff00';
+                    enemyDisplay.textContent = 'CLEAR!';
+                } else if (enemies.length <= 2) {
+                    enemyTracker.style.borderColor = '#ffaa00';
+                    enemyTracker.style.color = '#ffaa00';
+                } else {
+                    enemyTracker.style.borderColor = '#ff4444';
+                    enemyTracker.style.color = '#ff4444';
+                }
+            }
+            
+            if (currentWeaponDisplay) {
+                currentWeaponDisplay.textContent = weapon.name.toUpperCase();
+            }
+            
+            if (weaponIcon) {
+                weaponIcon.textContent = weapon.name === 'Pistol' ? '🔫' : '💥';
+            }
+            
+            if (currentScore) {
+                currentScore.textContent = player.score.toLocaleString();
+            }
+            
+            // Update health bar
+            const healthPercentage = Math.max(0, player.health) / 100;
+            const healthFill = document.getElementById('healthFill');
+            const healthText = document.getElementById('healthText');
+            
+            if (healthFill) {
+                healthFill.style.width = (healthPercentage * 100) + '%';
+                
+                // Change health bar color based on health level
+                if (player.health > 70) {
+                    healthFill.style.background = 'linear-gradient(90deg, #00ff00, #44ff44)';
+                } else if (player.health > 40) {
+                    healthFill.style.background = 'linear-gradient(90deg, #ffff00, #ffaa00)';
+                } else {
+                    healthFill.style.background = 'linear-gradient(90deg, #ff4400, #ff0000)';
+                }
+            }
+            
+            if (healthText) {
+                healthText.textContent = `${Math.max(0, player.health)} / 100`;
+            }
+            
+            // Health element color
+            if (healthElement) {
+                if (player.health > 60) {
+                    healthElement.style.color = '#00ff00';
+                } else if (player.health > 30) {
+                    healthElement.style.color = '#ffff00';
+                } else {
+                    healthElement.style.color = '#ff0000';
+                }
             }
         }
         
@@ -712,12 +1658,83 @@
         // Check win condition
         function checkWin() {
             if (enemies.length === 0) {
-                document.getElementById('gameOverText').textContent = 'VICTORY!';
-                document.getElementById('gameOverText').style.color = '#00ff00';
-                document.getElementById('gameOver').style.display = 'block';
+                // Check if this was the final boss level
+                if (currentLevel === 6) {
+                    // Final boss defeated - show special victory message
+                    showFinalVictory();
+                } else {
+                    // Unlock next level if not already unlocked
+                    const nextLevel = currentLevel + 1;
+                    if (nextLevel <= 6 && !unlockedLevels.includes(nextLevel)) {
+                        unlockedLevels.push(nextLevel);
+                    }
+                    
+                    // Show level selection menu
+                    showLevelMenu();
+                }
                 gameRunning = false;
                 playSound(800, 0.5, 'sine');
             }
+        }
+        
+        // Show final victory screen
+        function showFinalVictory() {
+            const gameOverDiv = document.getElementById('gameOver');
+            const gameOverText = document.getElementById('gameOverText');
+            
+            gameOverText.innerHTML = `
+                <div style="color: #00ff00; font-size: 48px; margin-bottom: 20px;">VICTORY!</div>
+                <div style="color: #ffff00; font-size: 24px; margin-bottom: 15px;">🎉 VOID OVERLORD DEFEATED! 🎉</div>
+                <div style="color: #ffffff; font-size: 20px; margin-bottom: 15px;">You have conquered all dimensions!</div>
+                <div style="color: #aaaaaa; font-size: 18px; margin-bottom: 20px;">Final Score: ${player.score.toLocaleString()}</div>
+                <div style="color: #888888; font-size: 16px;">Press F5 to play again</div>
+            `;
+            
+            gameOverDiv.style.display = 'block';
+            
+            // Play victory fanfare
+            setTimeout(() => playSound(800, 0.3, 'sine'), 0);
+            setTimeout(() => playSound(1000, 0.3, 'sine'), 200);
+            setTimeout(() => playSound(1200, 0.3, 'sine'), 400);
+            setTimeout(() => playSound(1600, 0.8, 'sine'), 600);
+        }
+        
+        // Show level selection menu
+        function showLevelMenu() {
+            document.getElementById('levelMenu').style.display = 'block';
+            updateLevelButtons();
+        }
+        
+        // Update level buttons based on unlocked levels
+        function updateLevelButtons() {
+            const buttons = document.querySelectorAll('.level-button');
+            buttons.forEach((button, index) => {
+                const levelNum = index + 1;
+                if (unlockedLevels.includes(levelNum)) {
+                    button.classList.remove('level-locked');
+                    button.disabled = false;
+                } else {
+                    button.classList.add('level-locked');
+                    button.disabled = true;
+                }
+            });
+        }
+        
+        // Select level function
+        function selectLevel(levelNum) {
+            if (!unlockedLevels.includes(levelNum)) return;
+            
+            currentLevel = levelNum;
+            document.getElementById('levelMenu').style.display = 'none';
+            
+            // Reset player health - position will be set by spawnEnemies()
+            player.health = 100;
+            
+            // Respawn enemies for new level (this also sets safe player position)
+            spawnEnemies();
+            gameRunning = true;
+            
+            playSound(600, 0.3, 'triangle');
         }
         
         // Resize canvas and effects
@@ -759,8 +1776,19 @@
         }
         
         // Initialize game
-        spawnEnemies();
-        gameLoop();
+        function initGame() {
+            document.getElementById('levelMenu').style.display = 'none';
+            spawnEnemies();
+            updateUI(); // Initial UI update
+            gameLoop();
+        }
+        
+        // Wait for DOM to be fully loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGame);
+        } else {
+            initGame();
+        }
     </script>
 </body>
 </html>
