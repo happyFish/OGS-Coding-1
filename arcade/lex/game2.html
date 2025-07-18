@@ -17,9 +17,48 @@
             background: #444;
             box-shadow: 0 0 20px #000a;
         }
+        #controls {
+            position: fixed;
+            top: 14px;
+            right: 18px;
+            background: rgba(30,30,30,0.92);
+            color: #ffe100;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 0.85em;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px #000a;
+            padding: 8px 13px 8px 11px;
+            z-index: 1000;
+            min-width: 120px;
+            line-height: 1.45;
+            letter-spacing: 0.01em;
+        }
+        #controls strong {
+            color: #fff;
+            font-size: 1em;
+        }
+        #controls kbd {
+            background: #ffe100;
+            color: #222;
+            border-radius: 3px;
+            padding: 0px 4px;
+            font-size: 0.92em;
+            font-family: inherit;
+            margin: 0 1px;
+        }
     </style>
 </head>
 <body>
+    <div id="controls">
+        <strong>Controls</strong><br>
+        <kbd>S</kbd> Spawn ragdoll<br>
+        <kbd>R</kbd> Reset<br>
+        <kbd>E</kbd> + Click: Explosion<br>
+        <kbd>T</kbd> + Click: Rope tool<br>
+        <kbd>F</kbd> + Click: Freeze/Unfreeze point<br>
+        Drag: Move ragdoll<br>
+        <kbd>F</kbd> (while dragging): Freeze/Unfreeze dragged point<br>
+    </div>
     <canvas id="canvas"></canvas>
     <script>
         // --- Ragdoll Physics ---
@@ -263,6 +302,7 @@ let ropeFirstPoint = null;
         let lastDragged = null;
         let skipStandUp = false;
 canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
     const mx = e.clientX, my = e.clientY;
     if (explosionMode) {
         // Explosion: apply velocity to all points away from click
