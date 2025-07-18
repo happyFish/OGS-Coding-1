@@ -79,6 +79,57 @@
             pointer-events: none;
             z-index: 50;
         }
+        
+        #levelMenu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #ff4444;
+            border-radius: 10px;
+            padding: 30px;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+            z-index: 200;
+            display: none;
+            min-width: 400px;
+        }
+        
+        #levelMenu h2 {
+            color: #ff4444;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        
+        .level-button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 15px;
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .level-button:hover {
+            background: rgba(255, 68, 68, 0.4);
+        }
+        
+        .level-button.completed {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #00ff00;
+        }
+        
+        .level-button.completed:hover {
+            background: rgba(0, 255, 0, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -91,7 +142,8 @@
         <div>Health: <span id="health">100</span></div>
         <div>Ammo: <span id="ammo">30</span>/90</div>
         <div>Score: <span id="score">0</span></div>
-        <div>Enemies: <span id="enemyCount">8</span></div>
+        <div>Enemies: <span id="enemyCount">6</span></div>
+        <div>Level: <span id="level">1</span> - <span id="levelName">Shadow Maze</span></div>
     </div>
     
     <div id="instructions">
@@ -100,11 +152,22 @@
         <div>Click: Shoot</div>
         <div>R: Reload</div>
         <div>Shift: Sprint</div>
+        <div>ESC: Level Menu</div>
     </div>
     
     <div id="gameOver">
         <div id="gameOverText">GAME OVER</div>
         <div style="font-size: 24px; margin-top: 20px;">Press F5 to restart</div>
+    </div>
+    
+    <div id="levelMenu">
+        <h2>Level Selection</h2>
+        <p id="levelCompleteText">Level completed!</p>
+        <button class="level-button" onclick="selectLevel(0)">Level 1 - Shadow Maze</button>
+        <button class="level-button" onclick="selectLevel(1)">Level 2 - Prison Cells</button>
+        <button class="level-button" onclick="selectLevel(2)">Level 3 - Industrial Complex</button>
+        <button class="level-button" onclick="selectLevel(3)">Level 4 - Ancient Crypt</button>
+        <button class="level-button" onclick="selectLevel(4)">Level 5 - Nightmare Realm</button>
     </div>
 
     <script>
@@ -132,6 +195,11 @@
         let mouseX = 0;
         let mouseY = 0;
         let lastMouseX = canvas.width / 2;
+        let currentLevel = 1;
+        let maxLevel = 5;
+        let levelTransition = false;
+        let transitionTimer = 0;
+        let completedLevels = []; // Track which levels have been completed
         
         // Player state
         const player = {
@@ -146,35 +214,176 @@
             sprintSpeed: 0.08,
             shootCooldown: 0,
             bobOffset: 0,
-            bobSpeed: 0
+            bobSpeed: 0,
+            damageFlash: 0
         };
         
-        // 3D World map (1 = wall, 0 = empty)
-        const worldMap = [
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1],
-            [1,0,1,0,0,0,1,0,0,1,0,0,0,1,0,1],
-            [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
-            [1,0,1,0,1,1,1,0,0,1,1,1,0,1,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1],
-            [1,0,0,0,0,1,0,1,1,0,1,0,0,0,0,1],
-            [1,0,1,0,0,0,0,1,1,0,0,0,0,1,0,1],
-            [1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1],
-            [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
-            [1,0,1,0,1,1,0,0,0,0,1,1,0,1,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        // 3D World maps for different levels
+        const worldMaps = [
+            // Level 1: Shadow Maze
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1],
+                [1,0,1,0,0,0,1,0,0,1,0,0,0,1,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+                [1,0,1,0,1,1,1,0,0,1,1,1,0,1,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1],
+                [1,0,0,0,0,1,0,1,1,0,1,0,0,0,0,1],
+                [1,0,1,0,0,0,0,1,1,0,0,0,0,1,0,1],
+                [1,0,1,1,0,1,0,0,0,0,1,0,1,1,0,1],
+                [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+                [1,0,1,0,1,1,0,0,0,0,1,1,0,1,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Level 2: Prison Cells
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1],
+                [1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+                [1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1],
+                [1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+                [1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1],
+                [1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Level 3: Industrial Complex
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+                [1,0,1,0,1,0,1,1,1,1,0,1,0,1,0,1],
+                [1,0,1,0,0,0,1,0,0,1,0,0,0,1,0,1],
+                [1,0,1,1,1,1,1,0,0,1,1,1,1,1,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,1,1,1,1,1,0,0,1,1,1,1,1,0,1],
+                [1,0,1,0,0,0,1,0,0,1,0,0,0,1,0,1],
+                [1,0,1,0,1,0,1,1,1,1,0,1,0,1,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+                [1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Level 4: Ancient Crypt
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+                [1,0,1,1,1,1,0,1,1,0,1,1,1,1,0,1],
+                [1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1],
+                [1,0,1,0,1,1,1,0,0,1,1,1,0,1,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+                [1,0,0,0,1,0,1,1,1,1,0,1,0,0,0,1],
+                [1,1,1,0,0,0,1,0,0,1,0,0,0,1,1,1],
+                [1,0,0,0,1,0,1,1,1,1,0,1,0,0,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+                [1,0,1,0,1,1,1,0,0,1,1,1,0,1,0,1],
+                [1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1],
+                [1,0,1,1,1,1,0,1,1,0,1,1,1,1,0,1],
+                [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Level 5: Nightmare Realm
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+                [1,0,1,0,1,0,1,0,0,1,0,1,0,1,0,1],
+                [1,1,0,0,0,1,0,1,1,0,1,0,0,0,1,1],
+                [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+                [1,0,1,0,1,0,1,0,0,1,0,1,0,1,0,1],
+                [1,0,0,0,0,1,0,1,1,0,1,0,0,0,0,1],
+                [1,0,1,1,0,0,0,0,0,0,0,0,1,1,0,1],
+                [1,0,0,0,1,0,1,0,0,1,0,1,0,0,0,1],
+                [1,0,1,0,0,1,0,1,1,0,1,0,0,1,0,1],
+                [1,1,0,0,1,0,0,0,0,0,0,1,0,0,1,1],
+                [1,0,0,1,0,1,0,1,1,0,1,0,1,0,0,1],
+                [1,0,1,0,1,0,0,0,0,0,0,1,0,1,0,1],
+                [1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ]
         ];
+
+        // Level configurations
+        const levelConfigs = [
+            { // Level 1: Shadow Maze
+                name: "Shadow Maze",
+                enemyCount: 6,
+                enemyHealth: 50,
+                enemySpeed: 0.02,
+                enemyColor: '#ff0000',
+                wallColor: { r: 0.8, g: 0.6, b: 0.4 },
+                floorColor: '#16213e',
+                ceilingColor: '#1a1a2e',
+                fogColor: '#000011'
+            },
+            { // Level 2: Prison Cells
+                name: "Prison Cells",
+                enemyCount: 8,
+                enemyHealth: 60,
+                enemySpeed: 0.025,
+                enemyColor: '#ff6600',
+                wallColor: { r: 0.6, g: 0.6, b: 0.8 },
+                floorColor: '#2a2a3a',
+                ceilingColor: '#1a1a1a',
+                fogColor: '#001122'
+            },
+            { // Level 3: Industrial Complex
+                name: "Industrial Complex",
+                enemyCount: 10,
+                enemyHealth: 70,
+                enemySpeed: 0.03,
+                enemyColor: '#ffff00',
+                wallColor: { r: 0.7, g: 0.5, b: 0.3 },
+                floorColor: '#3a3a2a',
+                ceilingColor: '#2a2a1a',
+                fogColor: '#221100'
+            },
+            { // Level 4: Ancient Crypt
+                name: "Ancient Crypt",
+                enemyCount: 12,
+                enemyHealth: 80,
+                enemySpeed: 0.035,
+                enemyColor: '#00ff00',
+                wallColor: { r: 0.5, g: 0.7, b: 0.5 },
+                floorColor: '#2a3a2a',
+                ceilingColor: '#1a2a1a',
+                fogColor: '#002200'
+            },
+            { // Level 5: Nightmare Realm
+                name: "Nightmare Realm",
+                enemyCount: 15,
+                enemyHealth: 100,
+                enemySpeed: 0.04,
+                enemyColor: '#ff00ff',
+                wallColor: { r: 0.8, g: 0.3, b: 0.8 },
+                floorColor: '#3a1a3a',
+                ceilingColor: '#2a1a2a',
+                fogColor: '#220022'
+            }
+        ];
+
+        let worldMap = worldMaps[0];
+        let currentLevelConfig = levelConfigs[0];
         
         const WORLD_WIDTH = worldMap[0].length;
         const WORLD_HEIGHT = worldMap.length;
         
         // Enemies
         let enemies = [];
-        const enemyCount = 8;
         
         // Bullets
         let bullets = [];
@@ -213,19 +422,20 @@
         
         // Enemy class
         class Enemy {
-            constructor(x, y) {
+            constructor(x, y, config) {
                 this.x = x;
                 this.y = y;
                 this.angle = Math.random() * Math.PI * 2;
-                this.health = 50;
-                this.speed = 0.02;
+                this.health = config.enemyHealth;
+                this.maxHealth = config.enemyHealth;
+                this.speed = config.enemySpeed;
                 this.attackCooldown = 0;
                 this.size = 0.3;
                 this.aggroRange = 5;
                 this.attackRange = 1;
                 this.lastSeen = 0;
                 this.wanderTimer = 0;
-                this.color = '#ff0000';
+                this.color = config.enemyColor;
                 this.dead = false;
             }
             
@@ -313,6 +523,7 @@
             
             attackPlayer() {
                 player.health -= 20;
+                player.damageFlash = 30; // Flash for 30 frames (half second at 60fps)
                 playSound(100, 0.3, 'sawtooth', 0.15);
                 
                 if (player.health <= 0) {
@@ -388,7 +599,9 @@
         // Initialize enemies
         function spawnEnemies() {
             enemies = [];
-            for (let i = 0; i < enemyCount; i++) {
+            const config = currentLevelConfig;
+            
+            for (let i = 0; i < config.enemyCount; i++) {
                 let x, y;
                 let attempts = 0;
                 
@@ -401,7 +614,7 @@
                          attempts < 100);
                 
                 if (attempts < 100) {
-                    enemies.push(new Enemy(x, y));
+                    enemies.push(new Enemy(x, y, config));
                 }
             }
         }
@@ -437,18 +650,18 @@
         // 3D rendering
         function render3D() {
             // Clear screen
-            ctx.fillStyle = '#000011';
+            ctx.fillStyle = currentLevelConfig.fogColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             // Draw ceiling and floor
             const horizon = canvas.height / 2 + player.bobOffset;
             
             // Ceiling
-            ctx.fillStyle = '#1a1a2e';
+            ctx.fillStyle = currentLevelConfig.ceilingColor;
             ctx.fillRect(0, 0, canvas.width, horizon);
             
             // Floor
-            ctx.fillStyle = '#16213e';
+            ctx.fillStyle = currentLevelConfig.floorColor;
             ctx.fillRect(0, horizon, canvas.width, canvas.height - horizon);
             
             // Cast rays for walls
@@ -469,16 +682,11 @@
                     const shade = Math.max(0, 1 - distance / MAX_DEPTH);
                     const brightness = Math.floor(shade * 255);
                     
-                    // Different wall colors based on direction
-                    let color;
-                    if (distance < 0.1) {
-                        color = `rgb(${brightness}, ${brightness}, ${brightness})`;
-                    } else {
-                        const r = Math.floor(brightness * 0.8);
-                        const g = Math.floor(brightness * 0.6);
-                        const b = Math.floor(brightness * 0.4);
-                        color = `rgb(${r}, ${g}, ${b})`;
-                    }
+                    // Use level-specific wall colors
+                    const r = Math.floor(brightness * currentLevelConfig.wallColor.r);
+                    const g = Math.floor(brightness * currentLevelConfig.wallColor.g);
+                    const b = Math.floor(brightness * currentLevelConfig.wallColor.b);
+                    const color = `rgb(${r}, ${g}, ${b})`;
                     
                     ctx.fillStyle = color;
                     ctx.fillRect(ray, wallTop, 1, wallHeight);
@@ -493,6 +701,30 @@
             
             for (let { enemy, distance } of sortedEnemies) {
                 if (distance > MAX_DEPTH) continue;
+                
+                // Check if enemy is blocked by walls (line of sight)
+                const dx = enemy.x - player.x;
+                const dy = enemy.y - player.y;
+                const angleToEnemy = Math.atan2(dy, dx);
+                
+                // Cast a ray to the enemy to check for wall occlusion
+                let blocked = false;
+                const stepSize = 0.1;
+                for (let step = 0; step < distance; step += stepSize) {
+                    const checkX = player.x + Math.cos(angleToEnemy) * step;
+                    const checkY = player.y + Math.sin(angleToEnemy) * step;
+                    
+                    const mapX = Math.floor(checkX);
+                    const mapY = Math.floor(checkY);
+                    
+                    if (mapX < 0 || mapX >= WORLD_WIDTH || mapY < 0 || mapY >= WORLD_HEIGHT || 
+                        worldMap[mapY][mapX] === 1) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                
+                if (blocked) continue; // Don't render if blocked by wall
                 
                 // Calculate enemy screen position
                 const enemyAngle = enemy.getAngle();
@@ -515,8 +747,16 @@
                 const shade = Math.max(0, 1 - distance / MAX_DEPTH);
                 const brightness = Math.floor(shade * 255);
                 
-                // Draw enemy as red rectangle
-                ctx.fillStyle = `rgb(${brightness}, 0, 0)`;
+                // Parse enemy color and apply shading
+                const colorMatch = enemy.color.match(/^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+                if (colorMatch) {
+                    const r = Math.floor(parseInt(colorMatch[1], 16) * shade);
+                    const g = Math.floor(parseInt(colorMatch[2], 16) * shade);
+                    const b = Math.floor(parseInt(colorMatch[3], 16) * shade);
+                    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    ctx.fillStyle = `rgb(${brightness}, 0, 0)`;
+                }
                 ctx.fillRect(
                     enemyScreenX - enemyWidth / 2,
                     enemyTop,
@@ -554,6 +794,29 @@
                 ctx.fillStyle = '#ff8800';
                 ctx.fillRect(gunX - 15, gunY - 5, 20, 30);
             }
+            
+            // Damage flash effect
+            if (player.damageFlash > 0) {
+                const flashIntensity = player.damageFlash / 30; // Fade from 1 to 0
+                ctx.fillStyle = `rgba(255, 0, 0, ${flashIntensity * 0.4})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // Level transition effect
+            if (levelTransition) {
+                const alpha = Math.sin(transitionTimer / 30) * 0.5 + 0.5;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Level name display
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '48px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(currentLevelConfig.name, canvas.width / 2, canvas.height / 2 - 50);
+                ctx.font = '24px Courier New';
+                ctx.fillText(`Level ${currentLevel}`, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.textAlign = 'left';
+            }
         }
         
         // Event listeners
@@ -586,6 +849,11 @@
             
             if (e.code === 'KeyR') {
                 reload();
+            }
+            
+            // ESC key to open level menu
+            if (e.code === 'Escape' && gameRunning) {
+                showLevelMenu();
             }
         });
         
@@ -644,6 +912,10 @@
             
             if (player.shootCooldown > 0) {
                 player.shootCooldown--;
+            }
+            
+            if (player.damageFlash > 0) {
+                player.damageFlash--;
             }
         }
         
@@ -705,6 +977,8 @@
             document.getElementById('ammo').textContent = player.ammo;
             document.getElementById('score').textContent = player.score;
             document.getElementById('enemyCount').textContent = enemies.filter(e => !e.dead).length;
+            document.getElementById('level').textContent = currentLevel;
+            document.getElementById('levelName').textContent = currentLevelConfig.name;
             
             // Health color
             const healthElement = document.getElementById('health');
@@ -717,6 +991,74 @@
             }
         }
         
+        // Load level
+        function loadLevel(levelIndex) {
+            if (levelIndex >= worldMaps.length) {
+                // Game completed!
+                document.getElementById('gameOverText').textContent = 'ALL LEVELS COMPLETED!';
+                document.getElementById('gameOverText').style.color = '#00ff00';
+                document.getElementById('gameOver').style.display = 'block';
+                gameRunning = false;
+                playSound(1200, 3, 'sine', 0.4);
+                return;
+            }
+            
+            currentLevel = levelIndex + 1;
+            worldMap = worldMaps[levelIndex];
+            currentLevelConfig = levelConfigs[levelIndex];
+            
+            // Reset player position
+            player.x = 1.5;
+            player.y = 1.5;
+            player.angle = 0;
+            player.health = Math.min(100, player.health + 25); // Heal a bit between levels
+            player.ammo = Math.min(30, player.ammo + 10); // Give some ammo
+            
+            // Clear existing entities
+            bullets = [];
+            
+            // Spawn new enemies
+            spawnEnemies();
+            
+            // Start level transition effect
+            levelTransition = true;
+            transitionTimer = 0;
+            
+            setTimeout(() => {
+                levelTransition = false;
+            }, 3000);
+            
+            playSound(800, 1, 'sine', 0.3);
+        }
+        
+        // Level selection functions
+        function showLevelMenu() {
+            gameRunning = false;
+            document.getElementById('levelMenu').style.display = 'block';
+            updateLevelMenuButtons();
+        }
+        
+        function hideLevelMenu() {
+            document.getElementById('levelMenu').style.display = 'none';
+            gameRunning = true;
+        }
+        
+        function selectLevel(levelIndex) {
+            hideLevelMenu();
+            loadLevel(levelIndex);
+        }
+        
+        function updateLevelMenuButtons() {
+            const buttons = document.querySelectorAll('.level-button');
+            buttons.forEach((button, index) => {
+                if (completedLevels.includes(index)) {
+                    button.classList.add('completed');
+                } else {
+                    button.classList.remove('completed');
+                }
+            });
+        }
+        
         // Game over
         function gameOver() {
             gameRunning = false;
@@ -727,12 +1069,28 @@
         // Check win condition
         function checkWin() {
             const aliveEnemies = enemies.filter(e => !e.dead).length;
-            if (aliveEnemies === 0) {
-                document.getElementById('gameOverText').textContent = 'VICTORY!';
-                document.getElementById('gameOverText').style.color = '#00ff00';
-                document.getElementById('gameOver').style.display = 'block';
-                gameRunning = false;
-                playSound(1000, 1, 'sine', 0.3);
+            if (aliveEnemies === 0 && !levelTransition) {
+                // Mark current level as completed
+                const currentLevelIndex = currentLevel - 1;
+                if (!completedLevels.includes(currentLevelIndex)) {
+                    completedLevels.push(currentLevelIndex);
+                }
+                
+                if (currentLevel >= maxLevel) {
+                    // All levels completed
+                    document.getElementById('gameOverText').textContent = 'ALL LEVELS COMPLETED!';
+                    document.getElementById('gameOverText').style.color = '#00ff00';
+                    document.getElementById('gameOver').style.display = 'block';
+                    gameRunning = false;
+                    playSound(1200, 3, 'sine', 0.4);
+                } else {
+                    // Show level selection menu
+                    setTimeout(() => {
+                        document.getElementById('levelCompleteText').textContent = `${currentLevelConfig.name} completed!`;
+                        showLevelMenu();
+                        playSound(1000, 1, 'sine', 0.3);
+                    }, 1000);
+                }
             }
         }
         
@@ -741,6 +1099,11 @@
             updatePlayer();
             
             if (gameRunning) {
+                // Update level transition
+                if (levelTransition) {
+                    transitionTimer++;
+                }
+                
                 // Update enemies
                 for (let enemy of enemies) {
                     enemy.update();
@@ -763,7 +1126,7 @@
         }
         
         // Initialize game
-        spawnEnemies();
+        loadLevel(0); // Start with level 1 (index 0)
         gameLoop();
         
         // Request pointer lock on click

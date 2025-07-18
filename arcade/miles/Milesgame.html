@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="vie    <div id="ui">
+        <div>Health: <span id="health">100</span></div>
+        <div>Ammo: <span id="ammo">30/90</span></div>
+        <div>Score: <span id="score">0</span></div>
+        <div>Enemies: <span id="enemyCount">5</span></div>
+        <div>Weapon: <span id="weapon">Pistol</span></div>
+    </div> content="width=device-width, initial-scale=1.0">
     <title>Horror FPS - Shadow Hunt</title>
     <style>
         body {
@@ -96,6 +102,8 @@
         <div>Mouse: Look</div>
         <div>Click: Shoot</div>
         <div>R: Reload</div>
+        <div>1: Pistol</div>
+        <div>2: Shotgun</div>
     </div>
     
     <div id="gameOver">
@@ -123,7 +131,38 @@
             totalAmmo: 90,
             score: 0,
             speed: 3,
-            shootCooldown: 0
+            shootCooldown: 0,
+            currentWeapon: 'pistol'
+        };
+        
+        // Weapon definitions
+        const weapons = {
+            pistol: {
+                name: 'Pistol',
+                damage: 25,
+                cooldown: 15,
+                maxAmmo: 30,
+                totalAmmo: 90,
+                spread: 0,
+                bulletCount: 1,
+                sound: 400
+            },
+            shotgun: {
+                name: 'Shotgun',
+                damage: 15,
+                cooldown: 30,
+                maxAmmo: 8,
+                totalAmmo: 24,
+                spread: 0.3,
+                bulletCount: 5,
+                sound: 200
+            }
+        };
+        
+        // Separate ammo for each weapon
+        let weaponAmmo = {
+            pistol: { current: 30, total: 90 },
+            shotgun: { current: 8, total: 24 }
         };
         
         // Game world
@@ -308,13 +347,14 @@
         
         // Bullet class
         class Bullet {
-            constructor(x, y, angle) {
+            constructor(x, y, angle, damage = 25) {
                 this.x = x;
                 this.y = y;
                 this.vx = Math.cos(angle) * 8;
                 this.vy = Math.sin(angle) * 8;
                 this.life = 100;
                 this.size = 3;
+                this.damage = damage;
             }
             
             update() {
@@ -351,7 +391,7 @@
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
                     if (distance < enemy.size) {
-                        enemy.takeDamage(25);
+                        enemy.takeDamage(this.damage);
                         this.life = 0;
                         
                         if (enemy.health <= 0) {
@@ -436,6 +476,14 @@
             if (e.code === 'KeyR') {
                 reload();
             }
+            
+            // Weapon switching
+            if (e.code === 'Digit1') {
+                switchWeapon('pistol');
+            }
+            if (e.code === 'Digit2') {
+                switchWeapon('shotgun');
+            }
         });
         
         document.addEventListener('keyup', (e) => {
@@ -479,24 +527,44 @@
         
         // Shooting
         function shoot() {
-            if (player.ammo <= 0 || player.shootCooldown > 0) return;
+            const weapon = weapons[player.currentWeapon];
+            const ammo = weaponAmmo[player.currentWeapon];
             
-            player.ammo--;
-            player.shootCooldown = 15; // Quarter second cooldown
+            if (ammo.current <= 0 || player.shootCooldown > 0) return;
             
-            bullets.push(new Bullet(player.x, player.y, player.angle));
-            playSound(400, 0.1, 'square');
+            ammo.current--;
+            player.shootCooldown = weapon.cooldown;
+            
+            // Create bullets based on weapon
+            for (let i = 0; i < weapon.bulletCount; i++) {
+                const spread = weapon.spread * (Math.random() - 0.5);
+                const bulletAngle = player.angle + spread;
+                bullets.push(new Bullet(player.x, player.y, bulletAngle, weapon.damage));
+            }
+            
+            playSound(weapon.sound, 0.1, 'square');
+        }
+        
+        // Switch weapon
+        function switchWeapon(weaponName) {
+            if (weapons[weaponName]) {
+                player.currentWeapon = weaponName;
+                playSound(600, 0.1, 'triangle');
+            }
         }
         
         // Reload
         function reload() {
-            if (player.totalAmmo <= 0 || player.ammo >= 30) return;
+            const ammo = weaponAmmo[player.currentWeapon];
+            const weapon = weapons[player.currentWeapon];
             
-            const needed = 30 - player.ammo;
-            const available = Math.min(needed, player.totalAmmo);
+            if (ammo.total <= 0 || ammo.current >= weapon.maxAmmo) return;
             
-            player.ammo += available;
-            player.totalAmmo -= available;
+            const needed = weapon.maxAmmo - ammo.current;
+            const available = Math.min(needed, ammo.total);
+            
+            ammo.current += available;
+            ammo.total -= available;
             
             playSound(300, 0.3, 'triangle');
         }
@@ -614,10 +682,14 @@
         
         // Update UI
         function updateUI() {
+            const ammo = weaponAmmo[player.currentWeapon];
+            const weapon = weapons[player.currentWeapon];
+            
             document.getElementById('health').textContent = Math.max(0, player.health);
-            document.getElementById('ammo').textContent = player.ammo;
+            document.getElementById('ammo').textContent = `${ammo.current}/${ammo.total}`;
             document.getElementById('score').textContent = player.score;
             document.getElementById('enemyCount').textContent = enemies.length;
+            document.getElementById('weapon').textContent = weapon.name;
             
             // Health bar color
             const healthElement = document.getElementById('health');
