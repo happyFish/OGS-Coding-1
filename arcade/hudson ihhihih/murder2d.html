@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>2D Cabin Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #222;
+        }
+
+        canvas {
+            display: block;
+            background: #4e944f;
+        }
+
+        #jumpscare {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #a00;
+            color: white;
+            font-size: 5vw;
+            font-family: sans-serif;
+            text-align: center;
+            line-height: 100vh;
+            z-index: 1000;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="jumpscare">JUMPSCARE!</div>
+    <canvas id="game" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+
+        // Game objects
+        const player = { x: 400, y: 500, r: 16, speed: 3 };
+        const monster = { x: 400, y: 100, r: 22, speed: 1.5 };
+        const trees = [];
+        const cabin = { x: 300, y: 300, w: 200, h: 120, door: { x: 390, y: 370, w: 20, h: 30 } };
+
+        // Generate trees (avoid cabin area)
+        for (let i = 0; i < 20; i++) {
+            let tx, ty, safe;
+            do {
+                tx = Math.random() * 800;
+                ty = Math.random() * 600;
+                safe = !(tx > cabin.x - 40 && tx < cabin.x + cabin.w + 40 && ty > cabin.y - 40 && ty < cabin.y + cabin.h + 40);
+            } while (!safe);
+            trees.push({ x: tx, y: ty, r: 28 });
+        }
+
+        // Controls
+        let keys = {};
+        document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        // Game loop
+        let gameOver = false;
+        function loop() {
+            if (gameOver) return;
+
+            // Move player
+            let dx = 0, dy = 0;
+            if (keys['w'] || keys['arrowup']) dy -= player.speed;
+            if (keys['s'] || keys['arrowdown']) dy += player.speed;
+            if (keys['a'] || keys['arrowleft']) dx -= player.speed;
+            if (keys['d'] || keys['arrowright']) dx += player.speed;
+
+            // Predict next position
+            let nx = player.x + dx, ny = player.y + dy;
+
+            // Cabin collision (walls, except door)
+            let inCabin = nx > cabin.x && nx < cabin.x + cabin.w && ny > cabin.y && ny < cabin.y + cabin.h;
+            let atDoor = nx > cabin.door.x && nx < cabin.door.x + cabin.door.w && ny > cabin.door.y && ny < cabin.door.y + cabin.door.h;
+            if (inCabin && !atDoor) {
+                // Block movement into cabin except at door
+                nx = player.x;
+                ny = player.y;
+            }
+
+            // Tree collision
+            for (let t of trees) {
+                let dist = Math.hypot(nx - t.x, ny - t.y);
+                if (dist < player.r + t.r) {
+                    nx = player.x;
+                    ny = player.y;
+                }
+            }
+
+            player.x = nx;
+            player.y = ny;
+
+            // Monster follows player
+            let mdx = player.x - monster.x;
+            let mdy = player.y - monster.y;
+            let mlen = Math.hypot(mdx, mdy);
+            if (mlen > 1) {
+                monster.x += (mdx / mlen) * monster.speed;
+                monster.y += (mdy / mlen) * monster.speed;
+            }
+
+            // Jumpscare if monster touches player
+            if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r - 2) {
+                document.getElementById('jumpscare').style.display = 'block';
+                gameOver = true;
+            }
+
+            // Draw
+            ctx.clearRect(0, 0, 800, 600);
+
+            // Draw trees
+            for (let t of trees) {
+                ctx.fillStyle = "#228b22";
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#8b5a2b";
+                ctx.beginPath();
+                ctx.arc(t.x, t.y + t.r / 2, t.r / 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw cabin
+            ctx.fillStyle = "#deb887";
+            ctx.fillRect(cabin.x, cabin.y, cabin.w, cabin.h);
+            // Draw door
+            ctx.fillStyle = "#654321";
+            ctx.fillRect(cabin.door.x, cabin.door.y, cabin.door.w, cabin.door.h);
+
+            // Draw monster (big, red, scary eyes)
+            ctx.fillStyle = "#220000";
+            ctx.beginPath();
+            ctx.arc(monster.x, monster.y, monster.r, 0, Math.PI * 2);
+            ctx.fill();
+            // Eyes
+            ctx.fillStyle = "#ff0000";
+            ctx.beginPath();
+            ctx.arc(monster.x - 7, monster.y - 5, 3, 0, Math.PI * 2);
+            ctx.arc(monster.x + 7, monster.y - 5, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw player
+            ctx.fillStyle = "#3399ff";
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+
+</html>

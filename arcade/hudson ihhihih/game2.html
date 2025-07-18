@@ -77,20 +77,15 @@
 
         // Front wall with door opening (split into two segments)
         const doorWidth = 6;
-        const houseWidth = 30;
-        const houseHeight = 20;
-        const houseDepth = 20;
-        const wallThickness = 1;
-        const wallZ = houseDepth / 2 - wallThickness / 2;
         const sideWallWidth = (houseWidth - doorWidth) / 2;
 
         // Left segment of front wall
         const wallFrontLeftGeo = new THREE.BoxGeometry(sideWallWidth, houseHeight, wallThickness);
         const wallFrontLeft = new THREE.Mesh(wallFrontLeftGeo, wallMat);
         wallFrontLeft.position.set(
-            -doorWidth / 2 - sideWallWidth / 2, // aligns left wall to left of door
+            -houseWidth / 2 + sideWallWidth / 2,
             houseHeight / 2,
-            wallZ
+            houseDepth / 2 - wallThickness / 2
         );
         scene.add(wallFrontLeft);
 
@@ -98,18 +93,14 @@
         const wallFrontRightGeo = new THREE.BoxGeometry(sideWallWidth, houseHeight, wallThickness);
         const wallFrontRight = new THREE.Mesh(wallFrontRightGeo, wallMat);
         wallFrontRight.position.set(
-            doorWidth / 2 + sideWallWidth / 2, // aligns right wall to right of door
+            houseWidth / 2 - sideWallWidth / 2,
             houseHeight / 2,
-            wallZ
+            houseDepth / 2 - wallThickness / 2
         );
         scene.add(wallFrontRight);
 
-        // Door
-        const doorGeo = new THREE.BoxGeometry(doorWidth, 10, 1);
-        const doorMat = new THREE.MeshLambertMaterial({ color: 0x654321 });
-        const door = new THREE.Mesh(doorGeo, doorMat);
-        door.position.set(0, 5, wallZ + 0.6); // Centered in the opening
-        scene.add(door);
+        // Roof (optional, keep as cone)
+        // roof.position.set(0, houseHeight + 5, 0);
 
         // Update houseCollision for new hollow house
         const houseCollision = {
@@ -120,6 +111,13 @@
             height: houseHeight,
             depth: houseDepth
         };
+
+        // Door
+        const doorGeo = new THREE.BoxGeometry(6, 10, 1);
+        const doorMat = new THREE.MeshLambertMaterial({ color: 0x654321 });
+        const door = new THREE.Mesh(doorGeo, doorMat);
+        door.position.set(0, 5, 10.5);
+        scene.add(door);
 
         // Store tree trunks for collision
         let treeTrunks = [];

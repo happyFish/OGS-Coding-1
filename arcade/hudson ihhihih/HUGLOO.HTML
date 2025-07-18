@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>2D Zombie Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #222;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: sans-serif;
+            z-index: 1;
+        }
+
+        canvas {
+            display: block;
+            background: #222;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="info">WASD: Move | Mouse: Aim | Click: Shoot</div>
+    <canvas id="game" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+
+        // Player
+        let player = { x: 400, y: 300, r: 18, speed: 3, health: 100 };
+        let keys = {};
+        let mouse = { x: 400, y: 300 };
+        let bullets = [];
+        let zombies = [];
+        let score = 0;
+        let level = 1;
+        let zombiesToSpawn = 10;
+        let zombiesAlive = 0;
+        let gameOver = false;
+        let boss = null;
+        let bossAlive = false;
+
+        // Controls
+        document.addEventListener('keydown', e => {
+            keys[e.key.toLowerCase()] = true;
+            // Respawn if game over and 'y' is pressed
+            if (gameOver && e.key.toLowerCase() === 'y') {
+                // Reset player and game state
+                player.x = 400;
+                player.y = 300;
+                player.health = 100;
+                bullets = [];
+                score = 0;
+                level = 1;
+                zombiesToSpawn = 10;
+                gameOver = false;
+                startLevel();
+            }
+        });
+        document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+        canvas.addEventListener('mousedown', e => shoot());
+
+        function shoot() {
+            if (gameOver) return;
+            let angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+            bullets.push({
+                x: player.x + Math.cos(angle) * player.r,
+                y: player.y + Math.sin(angle) * player.r,
+                dx: Math.cos(angle) * 8,
+                dy: Math.sin(angle) * 8,
+                r: 4,
+                life: 80
+            });
+        }
+
+        function spawnZombie() {
+            // Spawn at random edge
+            let edge = Math.floor(Math.random() * 4);
+            let zx, zy;
+            if (edge === 0) { zx = Math.random() * 800; zy = -20; }
+            else if (edge === 1) { zx = 820; zy = Math.random() * 600; }
+            else if (edge === 2) { zx = Math.random() * 800; zy = 620; }
+            else { zx = -20; zy = Math.random() * 600; }
+            zombies.push({ x: zx, y: zy, r: 18, speed: 1 + Math.random(), alive: true });
+            zombiesAlive++;
+        }
+
+        function startLevel() {
+            zombies = [];
+            bullets = [];
+            zombiesAlive = 0;
+            boss = null;
+            bossAlive = false;
+            for (let i = 0; i < zombiesToSpawn; i++) spawnZombie();
+
+            // Spawn boss on level 3
+            if (level === 3) {
+                boss = {
+                    x: 400,
+                    y: -60,
+                    r: 40,
+                    speed: 0.7,
+                    health: 20,
+                    maxHealth: 20,
+                    alive: true
+                };
+                bossAlive = true;
+            }
+        }
+
+        startLevel();
+
+        function update() {
+            if (gameOver) return;
+
+            // Move player
+            let dx = 0, dy = 0;
+            if (keys['w']) dy -= player.speed;
+            if (keys['s']) dy += player.speed;
+            if (keys['a']) dx -= player.speed;
+            if (keys['d']) dx += player.speed;
+            // Normalize diagonal
+            if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+            player.x += dx;
+            player.y += dy;
+            // Clamp to canvas
+            player.x = Math.max(player.r, Math.min(800 - player.r, player.x));
+            player.y = Math.max(player.r, Math.min(600 - player.r, player.y));
+
+            // Move bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i];
+                b.x += b.dx;
+                b.y += b.dy;
+                b.life--;
+                if (b.x < 0 || b.x > 800 || b.y < 0 || b.y > 600 || b.life <= 0) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Move zombies
+            for (let i = zombies.length - 1; i >= 0; i--) {
+                let z = zombies[i];
+                if (!z.alive) continue;
+                let zx = player.x - z.x;
+                let zy = player.y - z.y;
+                let dist = Math.sqrt(zx * zx + zy * zy);
+                if (dist > 1) {
+                    z.x += zx / dist * z.speed;
+                    z.y += zy / dist * z.speed;
+                }
+                // Check collision with player
+                if (dist < player.r + z.r) {
+                    player.health -= 0.5;
+                    if (player.health <= 0) {
+                        gameOver = true;
+                        setTimeout(() => alert("Game Over! Score: " + score + " | Level: " + level), 100);
+                    }
+                }
+                // Bullet hit
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    let b = bullets[j];
+                    let bx = b.x - z.x;
+                    let by = b.y - z.y;
+                    let bdist = Math.sqrt(bx * bx + by * by);
+                    if (bdist < z.r + b.r) {
+                        z.alive = false;
+                        bullets.splice(j, 1);
+                        score++;
+                        zombiesAlive--;
+                        break;
+                    }
+                }
+            }
+
+            // Boss logic (only on level 3)
+            if (boss && boss.alive) {
+                let bx = player.x - boss.x;
+                let by = player.y - boss.y;
+                let bdist = Math.sqrt(bx * bx + by * by);
+                if (bdist > 1) {
+                    boss.x += bx / bdist * boss.speed;
+                    boss.y += by / bdist * boss.speed;
+                }
+                // Boss hits player
+                if (bdist < player.r + boss.r) {
+                    player.health -= 1;
+                    if (player.health <= 0) {
+                        gameOver = true;
+                        setTimeout(() => alert("Game Over! Score: " + score + " | Level: " + level), 100);
+                    }
+                }
+                // Bullets hit boss
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    let b = bullets[j];
+                    let dx = b.x - boss.x;
+                    let dy = b.y - boss.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < boss.r + b.r) {
+                        boss.health--;
+                        bullets.splice(j, 1);
+                        if (boss.health <= 0) {
+                            boss.alive = false;
+                            bossAlive = false;
+                            score += 10; // Bonus for boss
+                        }
+                    }
+                }
+            }
+
+            // Next level
+            if (zombiesAlive <= 0 && !gameOver && (!boss || !boss.alive)) {
+                level++;
+                zombiesToSpawn = 10 + (level - 1) * 5;
+                startLevel();
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, 800, 600);
+
+            // Draw player
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            let angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#44aaff";
+            ctx.beginPath();
+            ctx.arc(0, 0, player.r, 0, Math.PI * 2);
+            ctx.fill();
+            // Gun
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(player.r - 2, -4, 18, 8);
+            ctx.restore();
+
+            // Draw bullets
+            ctx.fillStyle = "#ffff00";
+            for (let b of bullets) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw zombies
+            for (let z of zombies) {
+                if (!z.alive) continue;
+                ctx.save();
+                ctx.translate(z.x, z.y);
+                ctx.fillStyle = "#33ff33";
+                ctx.beginPath();
+                ctx.arc(0, 0, z.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Draw boss
+            if (boss && boss.alive) {
+                ctx.save();
+                ctx.translate(boss.x, boss.y);
+                ctx.fillStyle = "#aa2222";
+                ctx.beginPath();
+                ctx.arc(0, 0, boss.r, 0, Math.PI * 2);
+                ctx.fill();
+                // Boss health bar
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(-boss.r, -boss.r - 16, boss.r * 2, 10);
+                ctx.fillStyle = "#f00";
+                ctx.fillRect(-boss.r, -boss.r - 16, boss.r * 2 * (boss.health / boss.maxHealth), 10);
+                ctx.strokeStyle = "#000";
+                ctx.strokeRect(-boss.r, -boss.r - 16, boss.r * 2, 10);
+                ctx.restore();
+            }
+
+            // Draw health bar
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(10, 570, 100, 16);
+            ctx.fillStyle = "#f00";
+            ctx.fillRect(10, 570, player.health, 16);
+            ctx.strokeStyle = "#000";
+            ctx.strokeRect(10, 570, 100, 16);
+
+            // Draw score/level
+            ctx.fillStyle = "#fff";
+            ctx.font = "18px sans-serif";
+            ctx.fillText("Score: " + score, 680, 590);
+            ctx.fillText("Level: " + level, 600, 590);
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+
+</html>
