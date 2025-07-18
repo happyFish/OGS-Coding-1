@@ -169,6 +169,7 @@
         <button class="level-button" onclick="selectLevel(2)">Level 3 - Industrial Complex</button>
         <button class="level-button" onclick="selectLevel(3)">Level 4 - Ancient Crypt</button>
         <button class="level-button" onclick="selectLevel(4)">Level 5 - Nightmare Realm</button>
+        <button class="level-button" onclick="selectLevel(5)">Level 6 - Boss Arena</button>
     </div>
 
     <script>
@@ -197,7 +198,7 @@
         let mouseY = 0;
         let lastMouseX = canvas.width / 2;
         let currentLevel = 1;
-        let maxLevel = 5;
+        let maxLevel = 6;
         let levelTransition = false;
         let transitionTimer = 0;
         let completedLevels = []; // Track which levels have been completed
@@ -319,6 +320,25 @@
                 [1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,1],
                 [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
                 [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ],
+            // Level 6: Boss Arena
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+                [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
             ]
         ];
 
@@ -378,6 +398,19 @@
                 floorColor: '#3a1a3a',
                 ceilingColor: '#2a1a2a',
                 fogColor: '#220022'
+            },
+            { // Level 6: Boss Arena
+                name: "Boss Arena",
+                enemyCount: 1,
+                enemyHealth: 500,
+                enemySpeed: 0.015,
+                enemyColor: '#990000',
+                wallColor: { r: 0.3, g: 0.1, b: 0.1 },
+                floorColor: '#1a0a0a',
+                ceilingColor: '#0a0a0a',
+                fogColor: '#440000',
+                isBossLevel: true,
+                bossSize: 1.5
             }
         ];
 
@@ -435,7 +468,7 @@
                 this.maxHealth = config.enemyHealth;
                 this.speed = config.enemySpeed;
                 this.attackCooldown = 0;
-                this.size = 0.3;
+                this.size = 0.8; // Made even bigger and more intimidating
                 this.aggroRange = 5;
                 this.attackRange = 1;
                 this.lastSeen = 0;
@@ -529,7 +562,15 @@
             attackPlayer() {
                 player.health -= 20;
                 player.damageFlash = 30; // Flash for 30 frames (half second at 60fps)
-                playSound(100, 0.3, 'sawtooth', 0.15);
+                
+                // Terrifying enemy attack sound
+                playSound(60, 0.6, 'sawtooth', 0.25);
+                setTimeout(() => {
+                    playSound(120, 0.3, 'square', 0.15);
+                }, 100);
+                setTimeout(() => {
+                    playSound(40, 0.4, 'triangle', 0.12);
+                }, 200);
                 
                 if (player.health <= 0) {
                     gameOver();
@@ -555,6 +596,210 @@
             
             getAngle() {
                 return Math.atan2(this.y - player.y, this.x - player.x);
+            }
+        }
+
+        class Boss extends Enemy {
+            constructor(x, y, config) {
+                super(x, y, config);
+                this.size = config.bossSize || 1.5;
+                this.attackCooldown = 0;
+                this.specialAttackCooldown = 0;
+                this.phase = 1;
+                this.maxPhases = 3;
+                this.originalHealth = this.health;
+                this.attackPattern = 0;
+                this.circleDirection = 1;
+                this.circleAngle = 0;
+                this.rushCooldown = 0;
+            }
+
+            update() {
+                if (this.dead) return;
+
+                // Check for phase transitions
+                this.updatePhase();
+
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Boss AI based on current phase
+                switch (this.phase) {
+                    case 1:
+                        this.phaseOneAI(dx, dy, distance);
+                        break;
+                    case 2:
+                        this.phaseTwoAI(dx, dy, distance);
+                        break;
+                    case 3:
+                        this.phaseThreeAI(dx, dy, distance);
+                        break;
+                }
+
+                if (this.attackCooldown > 0) {
+                    this.attackCooldown--;
+                }
+                if (this.specialAttackCooldown > 0) {
+                    this.specialAttackCooldown--;
+                }
+                if (this.rushCooldown > 0) {
+                    this.rushCooldown--;
+                }
+            }
+
+            updatePhase() {
+                const healthPercent = this.health / this.originalHealth;
+                if (healthPercent <= 0.66 && this.phase === 1) {
+                    this.phase = 2;
+                    this.speed *= 1.3;
+                    playSound(80, 1.0, 'sawtooth', 0.3);
+                } else if (healthPercent <= 0.33 && this.phase === 2) {
+                    this.phase = 3;
+                    this.speed *= 1.5;
+                    playSound(60, 1.5, 'sawtooth', 0.4);
+                }
+            }
+
+            phaseOneAI(dx, dy, distance) {
+                // Slow pursuit with regular attacks
+                if (distance > this.attackRange) {
+                    const moveX = (dx / distance) * this.speed;
+                    const moveY = (dy / distance) * this.speed;
+                    
+                    if (!this.checkWallCollision(this.x + moveX, this.y)) {
+                        this.x += moveX;
+                    }
+                    if (!this.checkWallCollision(this.x, this.y + moveY)) {
+                        this.y += moveY;
+                    }
+                }
+
+                if (distance < this.attackRange * 1.5 && this.attackCooldown <= 0) {
+                    this.attackPlayer();
+                    this.attackCooldown = 90;
+                }
+            }
+
+            phaseTwoAI(dx, dy, distance) {
+                // Circle strafe with ranged attacks
+                this.circleAngle += 0.05 * this.circleDirection;
+                const circleX = player.x + Math.cos(this.circleAngle) * 3;
+                const circleY = player.y + Math.sin(this.circleAngle) * 3;
+                
+                const toDx = circleX - this.x;
+                const toDy = circleY - this.y;
+                const toDistance = Math.sqrt(toDx * toDx + toDy * toDy);
+                
+                if (toDistance > 0.5) {
+                    const moveX = (toDx / toDistance) * this.speed;
+                    const moveY = (toDy / toDistance) * this.speed;
+                    
+                    if (!this.checkWallCollision(this.x + moveX, this.y)) {
+                        this.x += moveX;
+                    }
+                    if (!this.checkWallCollision(this.x, this.y + moveY)) {
+                        this.y += moveY;
+                    }
+                }
+
+                if (this.specialAttackCooldown <= 0) {
+                    this.rangedAttack();
+                    this.specialAttackCooldown = 120;
+                }
+            }
+
+            phaseThreeAI(dx, dy, distance) {
+                // Aggressive rush attacks
+                if (this.rushCooldown <= 0) {
+                    // Rush towards player
+                    const rushSpeed = this.speed * 3;
+                    const moveX = (dx / distance) * rushSpeed;
+                    const moveY = (dy / distance) * rushSpeed;
+                    
+                    if (!this.checkWallCollision(this.x + moveX, this.y)) {
+                        this.x += moveX;
+                    }
+                    if (!this.checkWallCollision(this.x, this.y + moveY)) {
+                        this.y += moveY;
+                    }
+
+                    if (distance < this.attackRange * 2) {
+                        this.rushCooldown = 180;
+                    }
+                } else {
+                    // Normal movement
+                    if (distance > this.attackRange) {
+                        const moveX = (dx / distance) * this.speed;
+                        const moveY = (dy / distance) * this.speed;
+                        
+                        if (!this.checkWallCollision(this.x + moveX, this.y)) {
+                            this.x += moveX;
+                        }
+                        if (!this.checkWallCollision(this.x, this.y + moveY)) {
+                            this.y += moveY;
+                        }
+                    }
+                }
+
+                if (distance < this.attackRange * 2 && this.attackCooldown <= 0) {
+                    this.attackPlayer();
+                    this.attackCooldown = 60;
+                }
+            }
+
+            rangedAttack() {
+                // Visual indication of ranged attack (screen flash)
+                player.damageFlash = 10;
+                player.health -= 15;
+                
+                // Scary roar sound for ranged attack
+                playSound(80, 0.8, 'sawtooth', 0.25);
+                // Add echo effect
+                setTimeout(() => {
+                    playSound(120, 0.4, 'triangle', 0.15);
+                }, 200);
+                
+                if (player.health <= 0) {
+                    gameOver();
+                }
+            }
+
+            attackPlayer() {
+                const damage = this.phase * 15; // Damage increases with phase
+                player.health -= damage;
+                player.damageFlash = 30;
+                
+                // Scary boss attack sounds that get more menacing each phase
+                const frequencies = [60, 40, 30]; // Lower = scarier
+                const frequency = frequencies[this.phase - 1] || 30;
+                playSound(frequency, 0.8, 'sawtooth', 0.3);
+                
+                // Add a secondary growl sound
+                setTimeout(() => {
+                    playSound(frequency * 1.5, 0.4, 'square', 0.2);
+                }, 100);
+                
+                if (player.health <= 0) {
+                    gameOver();
+                }
+            }
+
+            takeDamage(damage) {
+                this.health -= damage;
+                playSound(250, 0.3, 'square', 0.15);
+                
+                if (this.health <= 0) {
+                    this.dead = true;
+                    player.score += 1000; // Boss gives more points
+                    playSound(100, 2.0, 'triangle', 0.3);
+                    
+                    // Check for game completion
+                    setTimeout(() => {
+                        alert('Congratulations! You have defeated the final boss and completed the game!');
+                        location.reload();
+                    }, 1000);
+                }
             }
         }
         
@@ -606,20 +851,40 @@
             enemies = [];
             const config = currentLevelConfig;
             
-            for (let i = 0; i < config.enemyCount; i++) {
+            // Check if this is a boss level
+            if (config.isBossLevel) {
+                // Spawn boss in the center of the arena
                 let x, y;
                 let attempts = 0;
                 
                 do {
-                    x = Math.random() * (WORLD_WIDTH - 2) + 1;
-                    y = Math.random() * (WORLD_HEIGHT - 2) + 1;
+                    x = WORLD_WIDTH / 2 + (Math.random() - 0.5) * 4; // Center area with some variation
+                    y = WORLD_HEIGHT / 2 + (Math.random() - 0.5) * 4;
                     attempts++;
                 } while ((worldMap[Math.floor(y)][Math.floor(x)] === 1 || 
-                         (Math.abs(x - player.x) < 2 && Math.abs(y - player.y) < 2)) && 
+                         (Math.abs(x - player.x) < 4 && Math.abs(y - player.y) < 4)) && 
                          attempts < 100);
                 
                 if (attempts < 100) {
-                    enemies.push(new Enemy(x, y, config));
+                    enemies.push(new Boss(x, y, config));
+                }
+            } else {
+                // Normal enemy spawning
+                for (let i = 0; i < config.enemyCount; i++) {
+                    let x, y;
+                    let attempts = 0;
+                    
+                    do {
+                        x = Math.random() * (WORLD_WIDTH - 2) + 1;
+                        y = Math.random() * (WORLD_HEIGHT - 2) + 1;
+                        attempts++;
+                    } while ((worldMap[Math.floor(y)][Math.floor(x)] === 1 || 
+                             (Math.abs(x - player.x) < 2 && Math.abs(y - player.y) < 2)) && 
+                             attempts < 100);
+                    
+                    if (attempts < 100) {
+                        enemies.push(new Enemy(x, y, config));
+                    }
                 }
             }
         }
@@ -743,7 +1008,7 @@
                 if (Math.abs(normalizedAngle) > HALF_FOV) continue; // Enemy not in view
                 
                 const enemyScreenX = (normalizedAngle + HALF_FOV) / FOV * canvas.width;
-                const enemyHeight = canvas.height / distance * 0.5;
+                const enemyHeight = canvas.height / distance * 0.5 * enemy.size; // Scale by enemy size
                 const enemyWidth = enemyHeight;
                 
                 const enemyTop = horizon - enemyHeight / 2;
@@ -769,12 +1034,111 @@
                     enemyHeight
                 );
                 
-                // Draw enemy eyes
-                if (distance < 5) {
-                    ctx.fillStyle = `rgb(${Math.floor(brightness * 1.5)}, ${Math.floor(brightness * 1.5)}, 0)`;
-                    const eyeSize = enemyWidth * 0.1;
-                    ctx.fillRect(enemyScreenX - enemyWidth * 0.2, enemyTop + enemyHeight * 0.2, eyeSize, eyeSize);
-                    ctx.fillRect(enemyScreenX + enemyWidth * 0.1, enemyTop + enemyHeight * 0.2, eyeSize, eyeSize);
+                // Special boss mouth rendering
+                if (enemy instanceof Boss && distance < 8) {
+                    // Draw massive open mouth
+                    const mouthWidth = enemyWidth * 0.8;
+                    const mouthHeight = enemyHeight * 0.4;
+                    const mouthX = enemyScreenX - mouthWidth / 2;
+                    const mouthY = enemyTop + enemyHeight * 0.4;
+                    
+                    // Mouth opening (black)
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(mouthX, mouthY, mouthWidth, mouthHeight);
+                    
+                    // Sharp teeth (white)
+                    ctx.fillStyle = `rgb(${Math.floor(brightness * 1.8)}, ${Math.floor(brightness * 1.8)}, ${Math.floor(brightness * 1.8)})`;
+                    const toothCount = 8;
+                    const toothWidth = mouthWidth / toothCount;
+                    
+                    // Top teeth (pointing down)
+                    for (let i = 0; i < toothCount; i++) {
+                        const toothX = mouthX + i * toothWidth;
+                        const toothHeight = mouthHeight * 0.3;
+                        ctx.beginPath();
+                        ctx.moveTo(toothX, mouthY);
+                        ctx.lineTo(toothX + toothWidth / 2, mouthY + toothHeight);
+                        ctx.lineTo(toothX + toothWidth, mouthY);
+                        ctx.fill();
+                    }
+                    
+                    // Bottom teeth (pointing up)
+                    for (let i = 0; i < toothCount; i++) {
+                        const toothX = mouthX + i * toothWidth;
+                        const toothHeight = mouthHeight * 0.3;
+                        const toothY = mouthY + mouthHeight;
+                        ctx.beginPath();
+                        ctx.moveTo(toothX, toothY);
+                        ctx.lineTo(toothX + toothWidth / 2, toothY - toothHeight);
+                        ctx.lineTo(toothX + toothWidth, toothY);
+                        ctx.fill();
+                    }
+                    
+                    // Glowing red eyes (more menacing)
+                    ctx.fillStyle = `rgb(${Math.floor(brightness * 2)}, 0, 0)`;
+                    const eyeSize = enemyWidth * 0.15;
+                    const eyeY = enemyTop + enemyHeight * 0.15;
+                    ctx.fillRect(enemyScreenX - enemyWidth * 0.3, eyeY, eyeSize, eyeSize);
+                    ctx.fillRect(enemyScreenX + enemyWidth * 0.15, eyeY, eyeSize, eyeSize);
+                    
+                    // Eye glow effect
+                    ctx.fillStyle = `rgb(${Math.floor(brightness * 1.5)}, ${Math.floor(brightness * 0.3)}, 0)`;
+                    const glowSize = eyeSize * 1.5;
+                    ctx.fillRect(enemyScreenX - enemyWidth * 0.3 - (glowSize - eyeSize) / 2, eyeY - (glowSize - eyeSize) / 2, glowSize, glowSize);
+                    ctx.fillRect(enemyScreenX + enemyWidth * 0.15 - (glowSize - eyeSize) / 2, eyeY - (glowSize - eyeSize) / 2, glowSize, glowSize);
+                    
+                    // Re-draw the bright red eyes on top
+                    ctx.fillStyle = `rgb(${Math.floor(brightness * 2)}, 0, 0)`;
+                    ctx.fillRect(enemyScreenX - enemyWidth * 0.3, eyeY, eyeSize, eyeSize);
+                    ctx.fillRect(enemyScreenX + enemyWidth * 0.15, eyeY, eyeSize, eyeSize);
+                    
+                } else {
+                    // Draw level-specific enemy features
+                    if (distance < 8) { // Extended visibility range for larger enemies
+                        // Base body with dark shadowing
+                        ctx.fillStyle = `rgb(${Math.floor(brightness * 0.4)}, 0, ${Math.floor(brightness * 0.2)})`;
+                        ctx.fillRect(
+                            enemyScreenX - enemyWidth * 0.6,
+                            enemyTop - enemyHeight * 0.1,
+                            enemyWidth * 1.2,
+                            enemyHeight * 1.1
+                        );
+                        
+                        // Level-specific enemy design
+                        switch (currentLevel) {
+                            case 1: // Shadow Maze - Shadow Wraiths
+                                drawShadowWraith(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness);
+                                break;
+                            case 2: // Prison Cells - Mutant Prisoners
+                                drawMutantPrisoner(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness);
+                                break;
+                            case 3: // Industrial Complex - Cybernetic Drones
+                                drawCyberneticDrone(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness);
+                                break;
+                            case 4: // Ancient Crypt - Undead Guardians
+                                drawUndeadGuardian(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness);
+                                break;
+                            case 5: // Nightmare Realm - Nightmare Demons
+                                drawNightmareDemon(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness);
+                                break;
+                            default: // Default enemy
+                                drawDefaultEnemy(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness);
+                                break;
+                        }
+                        
+                        // Add simple red aura effect for very close enemies
+                        if (distance < 2.5) {
+                            const pulseIntensity = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
+                            ctx.fillStyle = `rgba(255, 0, 0, ${pulseIntensity * 0.3})`;
+                            const auraSize = enemyWidth * 1.4;
+                            ctx.fillRect(
+                                enemyScreenX - auraSize / 2,
+                                enemyTop - enemyHeight * 0.2,
+                                auraSize,
+                                enemyHeight * 1.4
+                            );
+                        }
+                    }
                 }
             }
             
@@ -850,6 +1214,270 @@
                 ctx.font = '24px Courier New';
                 ctx.fillText(`Level ${currentLevel}`, canvas.width / 2, canvas.height / 2 + 20);
                 ctx.textAlign = 'left';
+            }
+        }
+        
+        // Enemy drawing functions for different levels
+        function drawShadowWraith(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness) {
+            // Shadow Wraiths - Wispy, ghostly creatures with glowing blue eyes
+            const eyeSize = enemyWidth * 0.15;
+            const eyeY = enemyTop + enemyHeight * 0.2;
+            
+            // Blue glowing eyes with wisps
+            ctx.fillStyle = `rgb(0, ${Math.floor(brightness * 0.5)}, ${Math.floor(brightness * 4)})`;
+            const haloSize = eyeSize * 1.8;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.3 - (haloSize - eyeSize) / 2, eyeY - (haloSize - eyeSize) / 2, haloSize, haloSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.1 - (haloSize - eyeSize) / 2, eyeY - (haloSize - eyeSize) / 2, haloSize, haloSize);
+            
+            // Bright blue eyes
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 0.3)}, ${Math.floor(brightness * 1.5)}, ${Math.min(255, brightness * 5)})`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.3, eyeY, eyeSize, eyeSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.1, eyeY, eyeSize, eyeSize);
+            
+            // Ghostly mouth - just a dark void
+            const mouthWidth = enemyWidth * 0.4;
+            const mouthHeight = enemyHeight * 0.15;
+            const mouthX = enemyScreenX - mouthWidth / 2;
+            const mouthY = enemyTop + enemyHeight * 0.6;
+            ctx.fillStyle = '#000033';
+            ctx.fillRect(mouthX, mouthY, mouthWidth, mouthHeight);
+            
+            // Wispy tendrils around the body
+            for (let i = 0; i < 4; i++) {
+                const tendrilX = enemyScreenX + (Math.sin(Date.now() * 0.005 + i) * enemyWidth * 0.3);
+                const tendrilY = enemyTop + enemyHeight * (0.3 + i * 0.2);
+                ctx.fillStyle = `rgb(0, 0, ${Math.floor(brightness * 2)})`;
+                ctx.fillRect(tendrilX, tendrilY, 2, enemyHeight * 0.15);
+            }
+        }
+        
+        function drawMutantPrisoner(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness) {
+            // Mutant Prisoners - Orange/yellow eyes, metal restraints, scars
+            const eyeSize = enemyWidth * 0.16;
+            const eyeY = enemyTop + enemyHeight * 0.18;
+            
+            // Orange glowing eyes
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 4)}, ${Math.floor(brightness * 2)}, 0)`;
+            const haloSize = eyeSize * 1.6;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.32 - (haloSize - eyeSize) / 2, eyeY - (haloSize - eyeSize) / 2, haloSize, haloSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.08 - (haloSize - eyeSize) / 2, eyeY - (haloSize - eyeSize) / 2, haloSize, haloSize);
+            
+            ctx.fillStyle = `rgb(${Math.min(255, brightness * 5)}, ${Math.floor(brightness * 3)}, 0)`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.32, eyeY, eyeSize, eyeSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.08, eyeY, eyeSize, eyeSize);
+            
+            // Metal restraint collar
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 0.8)}, ${Math.floor(brightness * 0.8)}, ${Math.floor(brightness * 0.8)})`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.5, enemyTop + enemyHeight * 0.05, enemyWidth, enemyHeight * 0.1);
+            
+            // Torn mouth with metal teeth
+            const mouthWidth = enemyWidth * 0.5;
+            const mouthHeight = enemyHeight * 0.2;
+            const mouthX = enemyScreenX - mouthWidth / 2;
+            const mouthY = enemyTop + enemyHeight * 0.55;
+            ctx.fillStyle = '#330000';
+            ctx.fillRect(mouthX, mouthY, mouthWidth, mouthHeight);
+            
+            // Metal teeth
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 1.2)}, ${Math.floor(brightness * 1.2)}, ${Math.floor(brightness * 1.2)})`;
+            for (let i = 0; i < 6; i++) {
+                const toothX = mouthX + i * (mouthWidth / 6);
+                const toothHeight = mouthHeight * 0.4;
+                ctx.fillRect(toothX, mouthY, 3, toothHeight);
+                ctx.fillRect(toothX, mouthY + mouthHeight - toothHeight, 3, toothHeight);
+            }
+            
+            // Prison number tattoo on forehead
+            ctx.fillStyle = `rgb(0, ${Math.floor(brightness * 0.8)}, 0)`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.1, enemyTop + enemyHeight * 0.08, enemyWidth * 0.2, 3);
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.05, enemyTop + enemyHeight * 0.08, 3, enemyHeight * 0.08);
+        }
+        
+        function drawCyberneticDrone(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness) {
+            // Cybernetic Drones - Mechanical, glowing yellow sensors, metal plating
+            const eyeSize = enemyWidth * 0.2;
+            const eyeY = enemyTop + enemyHeight * 0.2;
+            
+            // Yellow sensor arrays
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 4)}, ${Math.floor(brightness * 4)}, 0)`;
+            const sensorSize = eyeSize * 1.5;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.35 - (sensorSize - eyeSize) / 2, eyeY - (sensorSize - eyeSize) / 2, sensorSize, sensorSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.05 - (sensorSize - eyeSize) / 2, eyeY - (sensorSize - eyeSize) / 2, sensorSize, sensorSize);
+            
+            // Bright yellow sensors
+            ctx.fillStyle = `rgb(${Math.min(255, brightness * 6)}, ${Math.min(255, brightness * 6)}, 0)`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.35, eyeY, eyeSize, eyeSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.05, eyeY, eyeSize, eyeSize);
+            
+            // Metal plating on body
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 0.6)}, ${Math.floor(brightness * 0.6)}, ${Math.floor(brightness * 0.8)})`;
+            for (let i = 0; i < 4; i++) {
+                ctx.fillRect(enemyScreenX - enemyWidth * 0.4, enemyTop + enemyHeight * (0.3 + i * 0.15), enemyWidth * 0.8, 4);
+            }
+            
+            // Mechanical grille mouth
+            const grillWidth = enemyWidth * 0.4;
+            const grillHeight = enemyHeight * 0.15;
+            const grillX = enemyScreenX - grillWidth / 2;
+            const grillY = enemyTop + enemyHeight * 0.6;
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 0.4)}, ${Math.floor(brightness * 0.4)}, ${Math.floor(brightness * 0.4)})`;
+            ctx.fillRect(grillX, grillY, grillWidth, grillHeight);
+            
+            // Grille lines
+            for (let i = 0; i < 5; i++) {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(grillX + i * (grillWidth / 5), grillY, 2, grillHeight);
+            }
+            
+            // Antenna or sensor spikes
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 0.8)}, ${Math.floor(brightness * 0.8)}, 0)`;
+            ctx.fillRect(enemyScreenX - 2, enemyTop - enemyHeight * 0.1, 4, enemyHeight * 0.15);
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.2, enemyTop - enemyHeight * 0.05, 3, enemyHeight * 0.1);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.2, enemyTop - enemyHeight * 0.05, 3, enemyHeight * 0.1);
+        }
+        
+        function drawUndeadGuardian(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness) {
+            // Undead Guardians - Green glowing eyes, skeletal features, ancient armor
+            const eyeSize = enemyWidth * 0.14;
+            const eyeY = enemyTop + enemyHeight * 0.25;
+            
+            // Green glowing eye sockets (deeper set)
+            ctx.fillStyle = `rgb(0, ${Math.floor(brightness * 3)}, 0)`;
+            const socketSize = eyeSize * 2.2;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.32 - (socketSize - eyeSize) / 2, eyeY - (socketSize - eyeSize) / 2, socketSize, socketSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.08 - (socketSize - eyeSize) / 2, eyeY - (socketSize - eyeSize) / 2, socketSize, socketSize);
+            
+            // Dark eye sockets
+            ctx.fillStyle = '#001100';
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.32, eyeY - eyeSize * 0.3, eyeSize * 1.2, eyeSize * 1.6);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.08, eyeY - eyeSize * 0.3, eyeSize * 1.2, eyeSize * 1.6);
+            
+            // Glowing green eyes
+            ctx.fillStyle = `rgb(0, ${Math.min(255, brightness * 5)}, 0)`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.32, eyeY, eyeSize, eyeSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.08, eyeY, eyeSize, eyeSize);
+            
+            // Ancient armor plating
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 0.5)}, ${Math.floor(brightness * 0.7)}, ${Math.floor(brightness * 0.3)})`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.45, enemyTop + enemyHeight * 0.1, enemyWidth * 0.9, enemyHeight * 0.15);
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.4, enemyTop + enemyHeight * 0.35, enemyWidth * 0.8, enemyHeight * 0.2);
+            
+            // Skeletal jaw
+            const jawWidth = enemyWidth * 0.5;
+            const jawHeight = enemyHeight * 0.2;
+            const jawX = enemyScreenX - jawWidth / 2;
+            const jawY = enemyTop + enemyHeight * 0.6;
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 0.8)}, ${Math.floor(brightness * 0.8)}, ${Math.floor(brightness * 0.6)})`;
+            ctx.fillRect(jawX, jawY, jawWidth, 3);
+            ctx.fillRect(jawX, jawY + jawHeight - 3, jawWidth, 3);
+            
+            // Broken/missing teeth
+            for (let i = 0; i < 6; i++) {
+                if (i !== 2 && i !== 4) { // Some teeth missing
+                    const toothX = jawX + i * (jawWidth / 6);
+                    ctx.fillStyle = `rgb(${Math.floor(brightness * 1.2)}, ${Math.floor(brightness * 1.2)}, ${Math.floor(brightness * 0.8)})`;
+                    ctx.fillRect(toothX, jawY, 2, jawHeight * 0.3);
+                }
+            }
+            
+            // Ancient runes on forehead
+            ctx.fillStyle = `rgb(0, ${Math.floor(brightness * 1.5)}, 0)`;
+            for (let i = 0; i < 3; i++) {
+                ctx.fillRect(enemyScreenX - enemyWidth * 0.15 + i * (enemyWidth * 0.1), enemyTop + enemyHeight * 0.08, 3, 8);
+            }
+        }
+        
+        function drawNightmareDemon(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness) {
+            // Nightmare Demons - Purple/magenta eyes, chaotic features, reality distortion
+            const eyeSize = enemyWidth * 0.19;
+            const eyeY = enemyTop + enemyHeight * 0.15;
+            
+            // Pulsing magenta eyes with distortion
+            const pulseIntensity = Math.sin(Date.now() * 0.02) * 0.5 + 1.5;
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 2 * pulseIntensity)}, 0, ${Math.floor(brightness * 3 * pulseIntensity)})`;
+            const chaosSize = eyeSize * (1.8 + Math.sin(Date.now() * 0.015) * 0.4);
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.35 - (chaosSize - eyeSize) / 2, eyeY - (chaosSize - eyeSize) / 2, chaosSize, chaosSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.05 - (chaosSize - eyeSize) / 2, eyeY - (chaosSize - eyeSize) / 2, chaosSize, chaosSize);
+            
+            // Bright magenta eyes
+            ctx.fillStyle = `rgb(${Math.min(255, brightness * 4)}, 0, ${Math.min(255, brightness * 5)})`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.35, eyeY, eyeSize, eyeSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.05, eyeY, eyeSize, eyeSize);
+            
+            // Multiple chaotic mouths
+            for (let m = 0; m < 2; m++) {
+                const mouthWidth = enemyWidth * (0.3 + m * 0.2);
+                const mouthHeight = enemyHeight * 0.12;
+                const mouthX = enemyScreenX - mouthWidth / 2 + (Math.sin(Date.now() * 0.01 + m) * enemyWidth * 0.1);
+                const mouthY = enemyTop + enemyHeight * (0.5 + m * 0.2);
+                
+                // Void-like mouths
+                ctx.fillStyle = '#220022';
+                ctx.fillRect(mouthX, mouthY, mouthWidth, mouthHeight);
+                
+                // Chaotic teeth
+                ctx.fillStyle = `rgb(${Math.floor(brightness * 1.5)}, 0, ${Math.floor(brightness * 1.5)})`;
+                for (let i = 0; i < 5; i++) {
+                    const toothX = mouthX + i * (mouthWidth / 5) + Math.sin(Date.now() * 0.02 + i) * 2;
+                    const toothHeight = mouthHeight * (0.4 + Math.random() * 0.3);
+                    ctx.fillRect(toothX, mouthY, 2, toothHeight);
+                    ctx.fillRect(toothX, mouthY + mouthHeight - toothHeight, 2, toothHeight);
+                }
+            }
+            
+            // Reality distortion effects around the creature
+            for (let i = 0; i < 6; i++) {
+                const distortX = enemyScreenX + Math.sin(Date.now() * 0.008 + i) * enemyWidth * 0.6;
+                const distortY = enemyTop + enemyHeight * (0.2 + i * 0.15) + Math.cos(Date.now() * 0.01 + i) * 10;
+                ctx.fillStyle = `rgb(${Math.floor(brightness * 1.5)}, 0, ${Math.floor(brightness * 2)})`;
+                ctx.fillRect(distortX, distortY, 3, enemyHeight * 0.1);
+            }
+            
+            // Chaotic energy crackling around the body
+            for (let i = 0; i < 4; i++) {
+                const energyX = enemyScreenX + (Math.random() - 0.5) * enemyWidth;
+                const energyY = enemyTop + Math.random() * enemyHeight;
+                ctx.fillStyle = `rgb(${Math.floor(brightness * 3)}, 0, ${Math.floor(brightness * 4)})`;
+                ctx.fillRect(energyX, energyY, 1, 8);
+            }
+        }
+        
+        function drawDefaultEnemy(ctx, enemyScreenX, enemyTop, enemyWidth, enemyHeight, brightness) {
+            // Default enemy design - simple red eyes and basic features
+            const eyeSize = enemyWidth * 0.18;
+            const eyeY = enemyTop + enemyHeight * 0.15;
+            
+            // Red glowing eye halos
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 3)}, 0, 0)`;
+            const haloSize = eyeSize * 2;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.35 - (haloSize - eyeSize) / 2, eyeY - (haloSize - eyeSize) / 2, haloSize, haloSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.05 - (haloSize - eyeSize) / 2, eyeY - (haloSize - eyeSize) / 2, haloSize, haloSize);
+            
+            // Bright red eyes
+            const eyeBrightness = Math.floor(brightness * 4);
+            ctx.fillStyle = `rgb(${Math.min(255, eyeBrightness)}, ${Math.floor(eyeBrightness * 0.2)}, 0)`;
+            ctx.fillRect(enemyScreenX - enemyWidth * 0.35, eyeY, eyeSize, eyeSize);
+            ctx.fillRect(enemyScreenX + enemyWidth * 0.05, eyeY, eyeSize, eyeSize);
+            
+            // Basic mouth with teeth
+            const mouthWidth = enemyWidth * 0.6;
+            const mouthHeight = enemyHeight * 0.25;
+            const mouthX = enemyScreenX - mouthWidth / 2;
+            const mouthY = enemyTop + enemyHeight * 0.55;
+            
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(mouthX, mouthY, mouthWidth, mouthHeight);
+            
+            // Simple teeth
+            ctx.fillStyle = `rgb(${Math.floor(brightness * 2)}, ${Math.floor(brightness * 2)}, ${Math.floor(brightness * 1.8)})`;
+            const toothCount = 8;
+            const toothWidth = mouthWidth / toothCount;
+            
+            for (let i = 0; i < toothCount; i++) {
+                const toothX = mouthX + i * toothWidth;
+                const toothHeight = mouthHeight * 0.3;
+                ctx.fillRect(toothX, mouthY, 2, toothHeight);
+                ctx.fillRect(toothX, mouthY + mouthHeight - toothHeight, 2, toothHeight);
             }
         }
         

@@ -3,6 +3,10 @@ class Game {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.inputManager = new InputManager();
+        this.init();
+    }
+
+    init() {
         this.renderer = new Renderer(this.ctx);
         this.particleSystem = new ParticleSystem();
         this.combatSystem = new CombatSystem(this.particleSystem);
@@ -14,7 +18,6 @@ class Game {
         this.staffData = {
             x: 0, y: 0, vx: 0, vy: 0, targetX: 0, targetY: 0, timer: 0, flying: false
         };
-
         this.gameRunning = true;
     }
 
@@ -69,6 +72,16 @@ class Game {
         // Update particles
         this.particleSystem.updateParticles();
 
+        // In your game loop or wherever you check for player death, add:
+        if (this.p1.health <= 0 && !this.p1.exploded) {
+            this.p1.exploded = true;
+            this.combatSystem.explodePlayer(this.p1);
+        }
+        if (this.p2.health <= 0 && !this.p2.exploded) {
+            this.p2.exploded = true;
+            this.combatSystem.explodePlayer(this.p2);
+        }
+
         // Check game over
         if (this.p1.health <= 0 || this.p2.health <= 0) {
             this.gameRunning = false;
@@ -94,9 +107,16 @@ class Game {
         }
     }
 
+    onEnd() {
+
+    }
+
     gameLoop() {
         if (this.gameRunning) {
             this.update();
+        } else {
+            this.onEnd();
+            return;
         }
         this.render();
         requestAnimationFrame(() => this.gameLoop());

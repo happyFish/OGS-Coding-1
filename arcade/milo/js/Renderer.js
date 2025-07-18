@@ -2,7 +2,7 @@ class Renderer {
     constructor(ctx) {
         this.ctx = ctx;
         this.background = new Image();
-        this.background.src = 'https://www.creativeuncut.com/gallery-18/art/mk9-background-mileena.jpg';
+        this.background.src = 'https://media.istockphoto.com/id/1210270993/vector/blue-sea-background.jpg?s=612x612&w=0&k=20&c=-QE2caupyoLL6CRwQfwai5YUjJPVSxJU9tflZhobcM8=';
     }
 
     drawPlayer(p) {
