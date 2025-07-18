@@ -22,6 +22,22 @@ body {
     /* max-width: 1200px; */
 }
 
+#speaker {
+    cursor: pointer;
+}
+
+#speaker .off {
+    display: none;
+}
+
+#speaker.on .on {
+    display: none;
+}
+
+#speaker.on .off {
+    display: inline-block;
+}
+
 .machines {
     display: grid;
     gap: 20px;

@@ -3,6 +3,7 @@ class Arcade {
         this.container = document.querySelector('.arcade-container');
         this.machines = document.querySelector('.machines');
         this.iframe = document.createElement('iframe');
+        this.speaker = document.querySelector('#speaker');
 
         this.container.appendChild(this.iframe);
 
@@ -18,6 +19,24 @@ class Arcade {
             this.iframe.src = '';
             this.container.classList.remove('machine');
         });
+
+        this.speaker.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.toggleSpeaker();
+        });
+    }
+
+    toggleSpeaker() {
+        const audio = document.querySelector('audio');
+        if (audio.paused) {
+            audio.play();
+            this.speaker.classList.add('on');
+            this.speaker.classList.remove('off');
+        } else {
+            audio.pause();
+            this.speaker.classList.remove('on');
+            this.speaker.classList.add('off');
+        }
     }
 
     loadMachine(name) {
