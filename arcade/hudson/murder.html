@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>3D Cabin Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Add this CSS for jumpscare overlay */
+        #jumpscare {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #a00;
+            color: white;
+            font-size: 5vw;
+            font-family: sans-serif;
+            text-align: center;
+            line-height: 100vh;
+            z-index: 1000;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Add this to your HTML body for jumpscare overlay -->
+    <div id="jumpscare">
+        JUMPSCARE!
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x8fc1a9);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 6, 30);
+        let cameraYaw = 0;
+        let cameraPitch = 0;
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Light
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        dirLight.position.set(50, 100, 50);
+        scene.add(dirLight);
+
+        // Ground
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x4e944f });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Cabin walls
+        const wallMat = new THREE.MeshLambertMaterial({ color: 0xdeb887 });
+        const wallThickness = 1;
+        const cabinWidth = 16;
+        const cabinHeight = 10;
+        const cabinDepth = 12;
+
+        // Left wall
+        const wallLeftGeo = new THREE.BoxGeometry(wallThickness, cabinHeight, cabinDepth);
+        const wallLeft = new THREE.Mesh(wallLeftGeo, wallMat);
+        wallLeft.position.set(-cabinWidth / 2 + wallThickness / 2, cabinHeight / 2, 0);
+        scene.add(wallLeft);
+
+        // Right wall
+        const wallRight = wallLeft.clone();
+        wallRight.position.set(cabinWidth / 2 - wallThickness / 2, cabinHeight / 2, 0);
+        scene.add(wallRight);
+
+        // Back wall with a hole in the middle
+        const holeWidth = 4; // Width of the hole
+        const holeHeight = 7; // Height of the hole (match door or adjust)
+        const backWallY = holeHeight / 2;
+        const backWallZ = -cabinDepth / 2 + wallThickness / 2;
+        const sideBackWallWidth = (cabinWidth - holeWidth) / 2;
+
+        // Left segment of back wall
+        const backWallLeftGeo = new THREE.BoxGeometry(sideBackWallWidth, holeHeight, wallThickness);
+        const backWallLeft = new THREE.Mesh(backWallLeftGeo, wallMat);
+        backWallLeft.position.set(
+            -holeWidth / 2 - sideBackWallWidth / 2,
+            backWallY,
+            backWallZ
+        );
+        scene.add(backWallLeft);
+
+        // Right segment of back wall
+        const backWallRightGeo = new THREE.BoxGeometry(sideBackWallWidth, holeHeight, wallThickness);
+        const backWallRight = new THREE.Mesh(backWallRightGeo, wallMat);
+        backWallRight.position.set(
+            holeWidth / 2 + sideBackWallWidth / 2,
+            backWallY,
+            backWallZ
+        );
+        scene.add(backWallRight);
+
+        // Front wall (split for door)
+        const doorWidth = 4; // Try 6 or 8 for a wider door
+        const sideWallWidth = (cabinWidth - doorWidth) / 2;
+        const wallFrontLeftGeo = new THREE.BoxGeometry(sideWallWidth, cabinHeight, wallThickness);
+        const wallFrontLeft = new THREE.Mesh(wallFrontLeftGeo, wallMat);
+        wallFrontLeft.position.set(-doorWidth / 2 - sideWallWidth / 2, cabinHeight / 2, cabinDepth / 2 - wallThickness / 2);
+        scene.add(wallFrontLeft);
+
+        const wallFrontRightGeo = new THREE.BoxGeometry(sideWallWidth, cabinHeight, wallThickness);
+        const wallFrontRight = new THREE.Mesh(wallFrontRightGeo, wallMat);
+        wallFrontRight.position.set(doorWidth / 2 + sideWallWidth / 2, cabinHeight / 2, cabinDepth / 2 - wallThickness / 2);
+        scene.add(wallFrontRight);
+
+        // Door
+        const doorGeo = new THREE.BoxGeometry(doorWidth, 7, 0.5);
+        const doorMat = new THREE.MeshLambertMaterial({ color: 0x654321 });
+        const door = new THREE.Mesh(doorGeo, doorMat);
+        door.position.set(0, 3.5, cabinDepth / 2 + 0.1);
+        scene.add(door);
+
+        // Roof
+        const roofGeo = new THREE.ConeGeometry(cabinWidth / 1.2, 5, 4);
+        const roofMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+        const roof = new THREE.Mesh(roofGeo, roofMat);
+        roof.position.set(0, cabinHeight + 2.5, 0);
+        roof.rotation.y = Math.PI / 4;
+        scene.add(roof);
+
+        // Store tree trunks for collision
+        let treeTrunks = [];
+
+        // Add trees outside the cabin
+        function addTree(x, z) {
+            // Bigger trunk
+            const trunkGeo = new THREE.CylinderGeometry(2, 2, 12, 12);
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            trunk.position.set(x, 6, z); // half of trunk height
+            scene.add(trunk);
+
+            // Bigger leaves
+            const leavesGeo = new THREE.SphereGeometry(5, 18, 18);
+            const leavesMat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+            const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+            leaves.position.set(x, 13, z); // top of trunk
+            scene.add(leaves);
+
+            // Store for collision (increase radius too)
+            treeTrunks.push({ x: x, z: z, radius: 2.5 });
+        }
+
+        // Generate forest (avoid cabin area)
+        for (let i = 0; i < 40; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let radius = 30 + Math.random() * 60;
+            let x = Math.cos(angle) * radius;
+            let z = Math.sin(angle) * radius;
+            // Skip trees too close to cabin
+            if (Math.abs(x) < cabinWidth && Math.abs(z) < cabinDepth) continue;
+            addTree(x, z);
+        }
+
+        // Player sphere (for third-person view, but hidden in first-person)
+        const playerGeo = new THREE.SphereGeometry(1.2, 16, 16);
+        const playerMat = new THREE.MeshLambertMaterial({ color: 0x3399ff });
+        const player = new THREE.Mesh(playerGeo, playerMat);
+        scene.add(player);
+
+        // Monster setup
+        const monsterGeo = new THREE.SphereGeometry(2.5, 24, 24); // bigger
+        const monsterMat = new THREE.MeshLambertMaterial({ color: 0x220000 });
+        const monster = new THREE.Mesh(monsterGeo, monsterMat);
+        monster.position.set(10, 2.5, -30);
+        scene.add(monster);
+
+        // Glowing red eyes
+        const eyeGeo = new THREE.SphereGeometry(0.25, 8, 8);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.6, 0.5, 2.2);
+        rightEye.position.set(0.6, 0.5, 2.2);
+        monster.add(leftEye);
+        monster.add(rightEye);
+
+        // First-person controls
+        let keys = {};
+        document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        let isMouseDown = false;
+        let lastMouseX = 0,
+            lastMouseY = 0;
+        document.addEventListener('mousedown', e => { isMouseDown = true; lastMouseX = e.clientX; lastMouseY = e.clientY; });
+        document.addEventListener('mouseup', e => { isMouseDown = false; });
+        document.addEventListener('mousemove', e => {
+            if (isMouseDown) {
+                cameraYaw -= (e.clientX - lastMouseX) * 0.005;
+                cameraPitch -= (e.clientY - lastMouseY) * 0.005;
+                cameraPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cameraPitch));
+            }
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        // Cabin collision info
+        const cabinCollision = {
+            x: 0,
+            y: cabinHeight / 2,
+            z: 0,
+            width: cabinWidth,
+            height: cabinHeight,
+            depth: cabinDepth,
+            door: { x: 0, y: 3.5, z: cabinDepth / 2, width: doorWidth, height: 7 }
+        };
+
+        // Door open state
+        let doorOpen = false;
+        let doorAngle = 0;
+
+        // Animation loop
+        function animate() {
+            let speed = 1.2;
+            let forward = 0,
+                right = 0;
+            if (keys['w']) forward += speed;
+            if (keys['s']) forward -= speed;
+            if (keys['a']) right -= speed;
+            if (keys['d']) right += speed;
+
+            // Calculate movement direction
+            let dir = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).normalize();
+            let strafe = new THREE.Vector3(Math.cos(cameraYaw), 0, -Math.sin(cameraYaw)).normalize();
+
+            // Predict next position
+            let nextPos = camera.position.clone();
+            nextPos.addScaledVector(dir, forward);
+            nextPos.addScaledVector(strafe, right);
+
+            // Tree collision
+            let collision = false;
+            for (let t of treeTrunks) {
+                let dx = nextPos.x - t.x;
+                let dz = nextPos.z - t.z;
+                if (Math.sqrt(dx * dx + dz * dz) < t.radius + 1.2) {
+                    collision = true;
+                    break;
+                }
+            }
+
+            // Cabin collision (no door restriction)
+            let inCabinBox = (
+                nextPos.x > cabinCollision.x - cabinCollision.width / 2 - 1 &&
+                nextPos.x < cabinCollision.x + cabinCollision.width / 2 + 1 &&
+                nextPos.z > cabinCollision.z - cabinCollision.depth / 2 - 1 &&
+                nextPos.z < cabinCollision.z + cabinCollision.depth / 2 + 1 &&
+                nextPos.y > 0 && nextPos.y < cabinCollision.height + 2
+            );
+            // If door is open, allow entry through door area
+            let nearDoor = (
+                nextPos.x > door.position.x - doorWidth / 2 &&
+                nextPos.x < door.position.x + doorWidth / 2 &&
+                nextPos.z > door.position.z - 1.5 &&
+                nextPos.z < door.position.z + 1.5 &&
+                nextPos.y > 0 && nextPos.y < 7
+            );
+            if (inCabinBox && !(doorOpen && nearDoor)) collision = true;
+
+            // Only move if no collision
+            if (!collision) camera.position.copy(nextPos);
+
+            // Door opening logic
+            // Check if player is near door and presses E
+            if ((keys['e']) && nearDoor && !doorOpen) {
+                doorOpen = true;
+                keys['e'] = false;
+            }
+            // Animate door opening (rotate)
+            if (doorOpen && doorAngle > -Math.PI / 2) {
+                doorAngle -= 0.05;
+                door.rotation.y = doorAngle;
+            }
+
+            // Hide player sphere for first-person
+            player.visible = false;
+
+            // Set camera look direction
+            let lookDir = new THREE.Vector3(
+                Math.sin(cameraYaw) * Math.cos(cameraPitch),
+                Math.sin(cameraPitch),
+                Math.cos(cameraYaw) * Math.cos(cameraPitch)
+            );
+            camera.lookAt(camera.position.clone().add(lookDir));
+
+            // Monster always follows the player
+            let monsterStep = 0.13; // Monster speed (was 0.08)
+            let monsterDir = camera.position.clone().sub(monster.position).setY(0).normalize();
+            monster.position.addScaledVector(monsterDir, monsterStep);
+
+            // Optional: stop at some distance and "catch" the player
+            if (monster.position.distanceTo(camera.position) < 4) {
+                camera.position.x += (Math.random() - 0.5) * 0.2;
+                camera.position.y += (Math.random() - 0.5) * 0.2;
+            }
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>The Cabin - 2D Pixel Game</title>
+    <style>
+        body {
+            margin: 0;
+            background: #181830;
+        }
+
+        #objective {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            border-radius: 3px;
+            width: 300px;
+            z-index: 10;
+            height: 75px;
+            color: white;
+            text-align: right;
+            font-family: monospace;
+            padding: 15px;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #181830;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="objective">
+        go inside the cabin.
+
+    </div>
+    <canvas id="game" width="640" height="480"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+
+        // --- Game constants ---
+        const TILE = 32;
+        const MAP_W = canvas.width / TILE;
+        const MAP_H = canvas.height / TILE;
+
+        // --- Cabin position and size ---
+        const cabin = {
+            x: Math.floor(MAP_W / 2) - 2,
+            y: Math.floor(MAP_H / 2) - 2,
+            w: 4,
+            h: 4
+        };
+
+        // --- Player ---
+        const player = {
+            x: Math.floor(MAP_W / 2),
+            y: Math.floor(MAP_H / 2) + 3,
+            color: "#ffe066"
+        };
+
+        // --- Woods (random trees) ---
+        const trees = [];
+        for (let i = 0; i < 40; i++) {
+            let tx = Math.floor(Math.random() * MAP_W);
+            let ty = Math.floor(Math.random() * MAP_H);
+            // Don't spawn trees on cabin or player
+            if (
+                tx >= cabin.x - 1 && tx < cabin.x + cabin.w + 1 &&
+                ty >= cabin.y - 1 && ty < cabin.y + cabin.h + 1
+            ) continue;
+            if (tx === player.x && ty === player.y) continue;
+            trees.push({ x: tx, y: ty });
+        }
+
+        // --- Controls ---
+        const keys = {};
+        let doorOpen = false;
+        let insideCabin = false;
+
+        let objective = document.querySelector('#objective');
+
+        // Add a fade variable at the top:
+        let fade = 0;
+        let fadingIn = false;
+        let fadingOut = false;
+
+        // Add this near the top, after your variables:
+        let showIntro = true;
+        let introAlpha = 1;
+
+        // Add this near the top, after your variables:
+        let insideStartTime = null;
+
+        // Add this near the top, after your variables:
+        let sleeping = false;
+        let sleepStartTime = null;
+
+        // Add this near the top, after your variables:
+        let isDaytime = false;
+
+        // Add this near the top, after your variables:
+        let shotgun = null;
+
+        // --- Add this near the top, after your variables ---
+        let hasShotgun = false;
+
+        // --- Add this near the top, after your variables ---
+        let firedShotgun = false;
+        let fireTime = 0;
+
+        // Randomly spawn shotgun outside the cabin (not inside cabin or on player)
+        function spawnShotgun() {
+            while (true) {
+                let sx = Math.floor(Math.random() * MAP_W);
+                let sy = Math.floor(Math.random() * MAP_H);
+                // Don't spawn on cabin or player
+                if (
+                    sx >= cabin.x && sx < cabin.x + cabin.w &&
+                    sy >= cabin.y && sy < cabin.y + cabin.h
+                ) continue;
+                if (sx === player.x && sy === player.y) continue;
+                shotgun = { x: sx, y: sy };
+                break;
+            }
+        }
+
+        // --- Add these near the top, after your variables ---
+        let monster = {
+            x: Math.floor(Math.random() * MAP_W),
+            y: Math.floor(Math.random() * MAP_H),
+            hp: 100, // Changed from 10 to 100
+            alive: false
+        };
+        let monsterSpawned = false;
+
+        // --- Add this near the top, after your variables ---
+        let respawnRequested = false;
+
+        window.addEventListener('keydown', e => {
+            keys[e.key] = true;
+            if (e.key === ' ') { // Space key
+                if (hasShotgun && !firedShotgun) {
+                    firedShotgun = true;
+                    fireTime = Date.now();
+                    if (objective) {
+                        objective.innerText = "You fired the shotgun!";
+                    }
+                    monster.hp -= 1;
+                    if (monster.hp <= 0) {
+                        monster.alive = false;
+                        if (objective) {
+                            objective.innerText = "You survived!";
+                        }
+                    }
+                }
+            }
+            if (e.key === 'Shift') {
+                // Bed position (same as in draw)
+                const bedX = Math.floor(canvas.width / 2 / TILE) + 2; // adjust as needed for your bed's position
+                const bedY = Math.floor((canvas.height / 2 - 100) / TILE); // adjust as needed for your bed's position
+
+                // If inside and up against the bed, start sleeping sequence
+                if (insideCabin &&
+                    Math.abs(player.x - bedX) < 2 &&
+                    Math.abs(player.y - bedY) < 2
+                ) {
+                    sleeping = true;
+                    sleepStartTime = Date.now();
+                }
+                // Existing cabin door logic...
+                const doorX = cabin.x + 1.5;
+                const doorY = cabin.y + cabin.h - 1;
+                if (Math.abs(player.x - doorX) < 1 && Math.abs(player.y - doorY) < 1) {
+                    if (!insideCabin) {
+                        fadingIn = true;
+                        fade = 0;
+                    } else {
+                        fadingOut = true;
+                        fade = 0;
+                    }
+                } else {
+                    doorOpen = !doorOpen;
+                }
+            }
+            if (e.key === 'Tab') {
+                respawnRequested = true;
+                e.preventDefault(); // Prevent browser tab focus
+            }
+        });
+        window.addEventListener('keyup', e => keys[e.key] = false);
+
+        // --- Game loop ---
+        function update() {
+            let dx = 0, dy = 0;
+            if (keys['ArrowUp']) dy = -0.2;
+            if (keys['ArrowDown']) dy = 0.2;
+            if (keys['ArrowLeft']) dx = -0.2;
+            if (keys['ArrowRight']) dx = 0.2;
+
+            let nx = player.x + dx;
+            let ny = player.y + dy;
+
+            if (insideCabin) {
+                // Allow movement anywhere inside the canvas when inside the cabin
+                if (
+                    nx >= 0 && nx < MAP_W &&
+                    ny >= 0 && ny < MAP_H
+                ) {
+                    player.x = nx;
+                    player.y = ny;
+                }
+
+                // Exit cabin if player is at the exit door and presses Shift
+                // The exit door is at the bottom center of the canvas
+                const exitDoorX = Math.floor(canvas.width / 2 / TILE);
+                const exitDoorY = Math.floor((canvas.height - 40) / TILE); // matches the door's y position
+
+                if (
+                    keys['Shift'] &&
+                    Math.abs(player.x - exitDoorX) < 1 &&
+                    Math.abs(player.y - exitDoorY) < 1
+                ) {
+                    fade = 0;
+                    if (objective) {
+                        objective.innerText = "Find a shotgun.";
+                    }
+                    insideCabin = false;
+                    isDaytime = true;
+                    spawnShotgun(); // <-- Add this line
+                }
+            } else {
+                // Door area
+                const doorX = cabin.x + 1.5;
+                const doorY = cabin.y + cabin.h - 1;
+
+                // Is player trying to walk onto the door?
+                const onDoor =
+                    Math.abs(nx - doorX) < 1 &&
+                    Math.abs(ny - doorY) < 1;
+
+                // Is player trying to walk onto the cabin (excluding door if open)
+                const onCabin =
+                    nx >= cabin.x && nx < cabin.x + cabin.w &&
+                    ny >= cabin.y && ny < cabin.y + cabin.h &&
+                    !(doorOpen && onDoor);
+
+                if (
+                    nx >= 0 && nx < MAP_W &&
+                    ny >= 0 && ny < MAP_H &&
+                    !trees.some(t => Math.round(t.x) === Math.round(nx) && Math.round(t.y) === Math.round(ny)) &&
+                    !onCabin
+                ) {
+                    player.x = nx;
+                    player.y = ny;
+                }
+            }
+
+            // --- In your update() function, where the player picks up the shotgun ---
+            if (!insideCabin && shotgun && !hasShotgun) {
+                // If player is at the shotgun and presses Shift, pick it up
+                if (
+                    keys['Shift'] &&
+                    Math.abs(player.x - shotgun.x) < 1 &&
+                    Math.abs(player.y - shotgun.y) < 1
+                ) {
+                    hasShotgun = true;
+                    shotgun = null; // Remove shotgun from map
+                    isDaytime = false; // Make it night time after picking up the shotgun
+                    if (objective) {
+                        objective.innerText = "Survive monster";
+                    }
+                    // Spawn monster
+                    monster.x = Math.floor(Math.random() * MAP_W);
+                    monster.y = Math.floor(Math.random() * MAP_H);
+                    monster.hp = 100; // Changed
+                    monster.alive = true;
+                    monsterSpawned = true;
+                }
+            }
+
+            // --- Monster movement (simple chase) ---
+            if (monster.alive && !insideCabin) {
+                // Move monster towards player
+                let dx = player.x - monster.x;
+                let dy = player.y - monster.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    monster.x += Math.sign(dx) * 0.05;
+                } else {
+                    monster.y += Math.sign(dy) * 0.05;
+                }
+            }
+
+            if (monster.alive && !insideCabin) {
+                // Check if monster touches player (within 1 tile)
+                if (
+                    Math.abs(player.x - monster.x) < 1 &&
+                    Math.abs(player.y - monster.y) < 1
+                ) {
+                    // Player dies
+                    if (objective) {
+                        objective.innerText = "You were killed by the monster!";
+                    }
+                    // Optionally, stop the game loop or reset
+                    // For a simple effect, freeze player movement:
+                    player.dead = true;
+                }
+            }
+
+            // --- In your update() function, after handling player.dead ---
+            if (player.dead && respawnRequested) {
+                // Reset player and game state
+                player.x = Math.floor(MAP_W / 2);
+                player.y = Math.floor(MAP_H / 2) + 3;
+                player.dead = false;
+                insideCabin = false;
+                isDaytime = true;
+                hasShotgun = false;
+                firedShotgun = false;
+                shotgun = null;
+                monster.alive = false;
+                monster.hp = 100;
+                monsterSpawned = false;
+                objective.innerText = "go inside the cabin.";
+                respawnRequested = false;
+                spawnShotgun();
+            }
+
+            draw();
+
+            requestAnimationFrame(update);
+        }
+
+        // --- Drawing ---
+        function draw() {
+            if (sleeping) {
+                // Sleep sequence: fade to black and show "Sleeping..."
+                let sleepAlpha = Math.min(1, (Date.now() - sleepStartTime) / 2000);
+                ctx.save();
+                ctx.globalAlpha = sleepAlpha;
+                ctx.fillStyle = "#181830";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.globalAlpha = Math.min(1, sleepAlpha * 2);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 32px monospace";
+                ctx.textAlign = "center";
+                ctx.fillText("Sleeping...", canvas.width / 2, canvas.height / 2);
+                ctx.restore();
+
+                // After 2 seconds, finish sleeping
+                if (Date.now() - sleepStartTime > 2000) {
+                    sleeping = false;
+                    // Change objective text to "Go outside"
+                    if (objective) {
+                        objective.innerText = "Go outside.";
+                    }
+                }
+                return; // Don't draw anything else while sleeping
+            }
+
+            if (insideCabin) {
+                // Draw inside cabin scene
+                ctx.fillStyle = "#3a1f0f";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Rug (patterned, with fringe)
+                ctx.fillStyle = "#a0522d";
+                ctx.fillRect(canvas.width / 2 - 100, canvas.height / 2 + 80, 200, 40);
+                ctx.strokeStyle = "#fff";
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2 - 100 + i * 40, canvas.height / 2 + 80);
+                    ctx.lineTo(canvas.width / 2 - 100 + i * 40, canvas.height / 2 + 120);
+                    ctx.stroke();
+                }
+                // Rug fringe
+                ctx.strokeStyle = "#e6cba8";
+                for (let i = 0; i < 20; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2 - 100 + i * 10, canvas.height / 2 + 80);
+                    ctx.lineTo(canvas.width / 2 - 100 + i * 10, canvas.height / 2 + 75);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2 - 100 + i * 10, canvas.height / 2 + 120);
+                    ctx.lineTo(canvas.width / 2 - 100 + i * 10, canvas.height / 2 + 125);
+                    ctx.stroke();
+                }
+
+                // Table (legs, shadow, wood grain)
+                ctx.fillStyle = "#c9b18a";
+                ctx.fillRect(canvas.width / 2 - 120, canvas.height / 2 - 60, 80, 20);
+                ctx.fillStyle = "#8b5a2b";
+                ctx.fillRect(canvas.width / 2 - 115, canvas.height / 2 - 40, 8, 20); // left leg
+                ctx.fillRect(canvas.width / 2 - 43, canvas.height / 2 - 40, 8, 20); // right leg
+                ctx.fillStyle = "rgba(0,0,0,0.2)";
+                ctx.fillRect(canvas.width / 2 - 120, canvas.height / 2 - 40, 80, 8); // shadow
+                // Wood grain
+                ctx.strokeStyle = "#bfae9e";
+                for (let i = 0; i < 6; i++) {
+                    ctx.beginPath();
+                    ctx.arc(canvas.width / 2 - 100 + i * 24, canvas.height / 2 - 50, 10, 0, Math.PI);
+                    ctx.stroke();
+                }
+
+                // Chair (legs, backrest, seat detail)
+                ctx.fillStyle = "#7c4f2c";
+                ctx.fillRect(canvas.width / 2 - 130, canvas.height / 2 - 30, 20, 20);
+                ctx.fillRect(canvas.width / 2 - 128, canvas.height / 2 - 10, 4, 16); // left leg
+                ctx.fillRect(canvas.width / 2 - 114, canvas.height / 2 - 10, 4, 16); // right leg
+                ctx.fillStyle = "#a67c52";
+                ctx.fillRect(canvas.width / 2 - 130, canvas.height / 2 - 38, 20, 8); // backrest
+                // Seat detail
+                ctx.strokeStyle = "#bfae9e";
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 - 120, canvas.height / 2 - 20, 8, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Bed (frame, sheet, pillow, blanket, legs)
+                ctx.fillStyle = "#7c4f2c"; // bed frame
+                ctx.fillRect(canvas.width / 2 + 60, canvas.height / 2 - 100, 80, 32);
+                ctx.fillStyle = "#bfae9e"; // bed sheet
+                ctx.fillRect(canvas.width / 2 + 64, canvas.height / 2 - 96, 72, 24);
+                ctx.fillStyle = "#fff"; // pillow
+                ctx.fillRect(canvas.width / 2 + 65, canvas.height / 2 - 95, 24, 16);
+                ctx.fillStyle = "#7c4f2c"; // blanket
+                ctx.fillRect(canvas.width / 2 + 64, canvas.height / 2 - 68, 72, 24);
+                // Bed legs
+                ctx.fillStyle = "#8b5a2b";
+                ctx.fillRect(canvas.width / 2 + 62, canvas.height / 2 - 68, 6, 8);
+                ctx.fillRect(canvas.width / 2 + 132, canvas.height / 2 - 68, 6, 8);
+
+                // Stove (burners, oven door, knobs)
+                ctx.fillStyle = "#444";
+                ctx.fillRect(canvas.width / 2 + 120, canvas.height / 2 + 60, 32, 32);
+                ctx.fillStyle = "#222";
+                ctx.fillRect(canvas.width / 2 + 128, canvas.height / 2 + 68, 16, 8);
+                ctx.fillStyle = "#ff6347";
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 + 128, canvas.height / 2 + 68, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 + 144, canvas.height / 2 + 68, 4, 0, Math.PI * 2);
+                ctx.fill();
+                // Knobs
+                ctx.fillStyle = "#bbb";
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 + 126, canvas.height / 2 + 62, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 + 146, canvas.height / 2 + 62, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Sink (basin, faucet, water drops)
+                ctx.fillStyle = "#b0c4de";
+                ctx.fillRect(canvas.width / 2 - 160, canvas.height / 2 + 60, 32, 16);
+                ctx.fillStyle = "#888";
+                ctx.fillRect(canvas.width / 2 - 132, canvas.height / 2 + 60, 4, 16);
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 - 128, canvas.height / 2 + 68, 2, 0, Math.PI * 2);
+                ctx.fillStyle = "#b0c4de";
+                ctx.fill();
+                // Water drops
+                ctx.fillStyle = "#b0e0ff";
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 - 126, canvas.height / 2 + 78, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Fridge (handle, shadow, shelves)
+                ctx.fillStyle = "#e0e0e0";
+                ctx.fillRect(canvas.width / 2 + 180, canvas.height / 2 - 10, 24, 48);
+                ctx.fillStyle = "#bbb";
+                ctx.fillRect(canvas.width / 2 + 198, canvas.height / 2 + 10, 4, 16); // handle
+                ctx.fillStyle = "rgba(0,0,0,0.1)";
+                ctx.fillRect(canvas.width / 2 + 180, canvas.height / 2 + 38, 24, 8); // shadow
+                // Shelves
+                ctx.strokeStyle = "#ccc";
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2 + 182, canvas.height / 2 + 2);
+                ctx.lineTo(canvas.width / 2 + 202, canvas.height / 2 + 2);
+                ctx.moveTo(canvas.width / 2 + 182, canvas.height / 2 + 22);
+                ctx.lineTo(canvas.width / 2 + 202, canvas.height / 2 + 22);
+                ctx.stroke();
+
+                // Window (frame, glass, crossbars)
+                ctx.fillStyle = "#222";
+                ctx.fillRect(canvas.width / 2 - 180, canvas.height / 2 - 120, 40, 40);
+                ctx.fillStyle = "#eee";
+                ctx.fillRect(canvas.width / 2 - 175, canvas.height / 2 - 115, 30, 30);
+                ctx.strokeStyle = "#bbb";
+                ctx.strokeRect(canvas.width / 2 - 175, canvas.height / 2 - 115, 30, 30);
+                // Crossbars
+                ctx.strokeStyle = "#ccc";
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2 - 160, canvas.height / 2 - 115);
+                ctx.lineTo(canvas.width / 2 - 160, canvas.height / 2 - 85);
+                ctx.moveTo(canvas.width / 2 - 175, canvas.height / 2 - 100);
+                ctx.lineTo(canvas.width / 2 - 145, canvas.height / 2 - 100);
+                ctx.stroke();
+
+                // Bookshelf (shelves, books, wood detail)
+                ctx.fillStyle = "#8b5a2b";
+                ctx.fillRect(canvas.width / 2 + 160, canvas.height / 2 - 120, 24, 60);
+                ctx.fillStyle = "#c9b18a";
+                ctx.fillRect(canvas.width / 2 + 162, canvas.height / 2 - 115, 20, 6);
+                ctx.fillRect(canvas.width / 2 + 162, canvas.height / 2 - 100, 20, 6);
+                ctx.fillStyle = "#4682b4";
+                ctx.fillRect(canvas.width / 2 + 164, canvas.height / 2 - 109, 6, 6); // book
+                ctx.fillStyle = "#ff6347";
+                ctx.fillRect(canvas.width / 2 + 172, canvas.height / 2 - 109, 6, 6); // book
+                ctx.fillStyle = "#228b22";
+                ctx.fillRect(canvas.width / 2 + 164, canvas.height / 2 - 94, 6, 6); // book
+                // Wood detail
+                ctx.strokeStyle = "#bfae9e";
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 + 172, canvas.height / 2 - 80, 8, 0, Math.PI);
+                ctx.stroke();
+
+                // Lamp (base, light, cord)
+                ctx.fillStyle = "#ffd700";
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2, canvas.height / 2 - 130, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#a67c52";
+                ctx.fillRect(canvas.width / 2 - 3, canvas.height / 2 - 120, 6, 20); // lamp base
+                // Cord
+                ctx.strokeStyle = "#222";
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2, canvas.height / 2 - 110);
+                ctx.lineTo(canvas.width / 2, canvas.height / 2 - 100);
+                ctx.stroke();
+
+                // Player (draw human)
+                ctx.fillStyle = "#ffe0b3";
+                ctx.fillRect(player.x * TILE + 10, player.y * TILE + 8, 12, 12);
+                ctx.fillStyle = "#4682b4";
+                ctx.fillRect(player.x * TILE + 12, player.y * TILE + 20, 8, 14);
+                ctx.fillStyle = "#ffe0b3";
+                ctx.fillRect(player.x * TILE + 8, player.y * TILE + 22, 4, 10);
+                ctx.fillRect(player.x * TILE + 20, player.y * TILE + 22, 4, 10);
+                ctx.fillStyle = "#222";
+                ctx.fillRect(player.x * TILE + 12, player.y * TILE + 34, 4, 10);
+                ctx.fillRect(player.x * TILE + 16, player.y * TILE + 34, 4, 10);
+                ctx.fillStyle = "#222";
+                ctx.fillRect(player.x * TILE + 13, player.y * TILE + 12, 2, 2);
+                ctx.fillRect(player.x * TILE + 17, player.y * TILE + 12, 2, 2);
+
+                // Door to go back outside (draw at bottom center)
+                ctx.fillStyle = "#c9b18a";
+                ctx.fillRect(canvas.width / 2 - 16, canvas.height - 40, 32, 32);
+                ctx.strokeStyle = "#7c4f2c";
+                ctx.strokeRect(canvas.width / 2 - 16, canvas.height - 40, 32, 32);
+                // Door knob
+                ctx.fillStyle = "#888";
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 + 10, canvas.height - 24, 3, 0, Math.PI * 2);
+                ctx.fill();
+                // Optional: sign above the door
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 12px monospace";
+                ctx.fillText("EXIT", canvas.width / 2 - 14, canvas.height - 46);
+
+                return;
+            }
+
+            // Day or night sky
+            ctx.fillStyle = "#87ceeb"; // light blue for day
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Sun or moon
+            const moonX = 80,
+
+
+                moonY = 80,
+                moonR = 30;
+            if (isDaytime) {
+                // Sun
+                const sunX = 80,
+                    sunY = 80,
+                    sunR = 30;
+                ctx.fillStyle = "#ffe066";
+                ctx.beginPath();
+                ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Moon
+                ctx.fillStyle = "#eee";
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw ground (grass)
+            ctx.fillStyle = "#4e944f"; // green grass color
+            ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+
+            // Optionally, add some texture (simple patches)
+            for (let i = 0; i < 30; i++) {
+                ctx.fillStyle = "#6ab04c";
+                let gx = Math.random() * canvas.width;
+                let gy = canvas.height / 2 + Math.random() * (canvas.height / 2 - 20);
+                ctx.beginPath();
+                ctx.arc(gx, gy, 12 + Math.random() * 8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Trees (skip trees overlapping the moon)ng the moon)
+            for (const t of trees) {
+                // Tree center position
+                const treeCenterX = t.x * TILE + 16;
+                const treeCenterY = t.y * TILE + 8;
+                // If tree overlaps moon, skip drawing                // If tree overlaps moon, skip drawing
+                const dist = Math.hypot(treeCenterX - moonX, treeCenterY - moonY);
+                if (dist < moonR + 8) continue; continue;
+
+                ctx.beginPath();
+                ctx.fillStyle = "#234d20"; tyle = "#234d20";
+                ctx.fillRect(t.x * TILE + 8, t.y * TILE + 8, 16, 16);
+                ctx.fillStyle = "#543b1c"; e = "#543b1c";
+                ctx.fillRect(t.x * TILE + 14, t.y * TILE + 20, 4, 8);
+                ctx.closePath();
+            }
+
+            // Cabin (walls)
+            ctx.fillStyle = "#7c4f2c";
+            ctx.fillRect(cabin.x * TILE, cabin.y * TILE, cabin.w * TILE, cabin.h * TILE);
+            // Cabin roof
+            ctx.fillStyle = "#3a1f0f";
+            ctx.beginPath();
+            ctx.moveTo(cabin.x * TILE - 8, cabin.y * TILE);
+            ctx.lineTo((cabin.x + cabin.w) * TILE + 8, cabin.y * TILE);
+            ctx.lineTo((cabin.x + cabin.w / 2) * TILE, (cabin.y * TILE) - TILE);
+            ctx.closePath();
+            ctx.fill(); ctx.fill();
+            // Cabin doorn door
+            ctx.fillStyle = "#c9b18a";
+            ctx.fillRect((cabin.x + 1.5) * TILE, (cabin.y + cabin.h - 1) * TILE, TILE, TILE);
+
+            // Player (simple pixel character, now looks more like a human)er (simple pixel character, now looks more like a human)
+            // Head
+            ctx.fillStyle = "#ffe0b3";
+            ctx.fillRect(player.x * TILE + 10, player.y * TILE + 8, 12, 12);
+
+            // Body
+            ctx.fillStyle = "#4682b4";
+            ctx.fillRect(player.x * TILE + 12, player.y * TILE + 20, 8, 14);
+
+            // Arms            // Arms
+            ctx.fillStyle = "#ffe0b3";
+            lStyle = "#ffe0b3";
+            ctx.fillRect(player.x * TILE + 8, player.y * TILE + 22, 4, 10); // left arm TILE + 8, player.y * TILE + 22, 4, 10); // left arm
+            ctx.fillRect(player.x * TILE + 20, player.y * TILE + 22, 4, 10); // right arm; // right arm
+
+            // Legs            // Legs
+            ctx.fillStyle = "#222";
+            ctx.fillRect(player.x * TILE + 12, player.y * TILE + 34, 4, 10); // left legt(player.x * TILE + 12, player.y * TILE + 34, 4, 10); // left leg
+            ctx.fillRect(player.x * TILE + 16, player.y * TILE + 34, 4, 10); // right leg TILE + 16, player.y * TILE + 34, 4, 10); // right leg
+
+            // Eyes
+            ctx.fillStyle = "#222";
+            ctx.fillRect(player.x * TILE + 13, player.y * TILE + 12, 2, 2);
+            ctx.fillRect(player.x * TILE + 17, player.y * TILE + 12, 2, 2);
+
+            // Remove this block to get rid of texts:rid of texts:
+            // if (showIntro) {
+            //     ctx.save();x.save();
+            //     ctx.globalAlpha = introAlpha;ha;
+            //     ctx.fillStyle = "#fff";
+            //     ctx.font = "bold 28px monospace";old 28px monospace";
+            //     ctx.textAlign = "center";n = "center";
+            //     ctx.fillText(
+            //         "After you escaped the monster, you found a",
+            //         canvas.width / 2,  canvas.width / 2,
+            //         canvas.height / 2 - 80 80
+            //     );
+            //     ctx.fillStyle = "#ffe066"; = "#ffe066";
+            //     ctx.font = "bold 32px monospace"; 32px monospace";
+            //     ctx.fillText(
+            //         "cabin",
+            //         canvas.width / 2,  canvas.width / 2,
+            //         canvas.height / 2 - 30 + (1 - introAlpha) * 40ght / 2 - 30 + (1 - introAlpha) * 40
+            //     );
+            //     ctx.fillStyle = "#fff";;
+            //     ctx.font = "bold 20px monospace";monospace";
+            //     ctx.fillText(tx.fillText(
+            //         "and after",       "and after",
+            //         canvas.width / 2,            //         canvas.width / 2,
+            //         canvas.height / 2 + 10 + (1 - introAlpha) * 40eight / 2 + 10 + (1 - introAlpha) * 40
+            //     );
+            //     ctx.restore();e();
+            //     introAlpha -= 0.008;
+            //     if (introAlpha <= 0) {
+            //         showIntro = false;
+            //     }
+            // }
+
+            // Fade in to cabin
+            if (fadingIn) {
+                fade += 0.05;
+                ctx.fillStyle = `rgba(58,31,15,${fade})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                if (fade >= 1) {
+                    fadingIn = false;
+                    insideCabin = true;
+                    objective.innerText = "Go to bed.";
+                    fade = 1;
+                }
+            }
+            // Fade out to outside
+            if (fadingOut) {
+                fade += 0.05;
+                ctx.fillStyle = `rgba(24,24,48,${fade})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                if (fade >= 1) {
+                    fadingOut = false;
+                    insideCabin = false;
+                    fade = 1;
+                }
+            }
+
+            // --- In your draw() function, only draw the shotgun if it exists and player doesn't have it ---
+            if (shotgun && !insideCabin && !hasShotgun) {
+                ctx.fillStyle = "#543b1c";
+                ctx.fillRect(shotgun.x * TILE + 8, shotgun.y * TILE + 18, 16, 6); // stock
+                ctx.fillStyle = "#bbb";
+                ctx.fillRect(shotgun.x * TILE + 20, shotgun.y * TILE + 20, 12, 2); // barrel
+            }
+
+            if (firedShotgun) {
+                // Show a muzzle flash for 0.3 seconds
+                if (Date.now() - fireTime < 300) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillStyle = "#fff200";
+                    ctx.beginPath();
+                    ctx.arc(player.x * TILE + 28, player.y * TILE + 24, 16, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                } else {
+                    firedShotgun = false;
+                }
+            }
+
+            // --- Draw monster ---
+            if (monster.alive && !insideCabin) {
+                // Monster body (large, dark, shadowy)
+                ctx.save();
+                ctx.shadowColor = "#a00";
+                ctx.shadowBlur = 24;
+                ctx.fillStyle = "#2a0000";
+                ctx.beginPath();
+                ctx.ellipse(monster.x * TILE + 16, monster.y * TILE + 24, 22, 32, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eyes (glowing red)
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "#ff2222";
+                ctx.beginPath();
+                ctx.arc(monster.x * TILE + 10, monster.y * TILE + 18, 5, 0, Math.PI * 2);
+                ctx.arc(monster.x * TILE + 22, monster.y * TILE + 18, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Mouth (wide, jagged, white fangs)
+                ctx.fillStyle = "#fff";
+                ctx.beginPath();
+                ctx.moveTo(monster.x * TILE + 8, monster.y * TILE + 32);
+                ctx.lineTo(monster.x * TILE + 24, monster.y * TILE + 32);
+                ctx.lineTo(monster.x * TILE + 16, monster.y * TILE + 40);
+                ctx.closePath();
+                ctx.fill();
+
+                // Fangs
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 4; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(monster.x * TILE + 10 + i * 4, monster.y * TILE + 32);
+                    ctx.lineTo(monster.x * TILE + 12 + i * 4, monster.y * TILE + 36);
+                    ctx.stroke();
+                }
+
+                // Claws (long, sharp)
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(monster.x * TILE + 6 + i * 10, monster.y * TILE + 50);
+                    ctx.lineTo(monster.x * TILE + 10 + i * 10, monster.y * TILE + 60);
+                    ctx.stroke();
+                }
+
+                // Flickering shadow effect
+                ctx.globalAlpha = 0.2 + Math.random() * 0.2;
+                ctx.fillStyle = "#000";
+                ctx.beginPath();
+                ctx.ellipse(monster.x * TILE + 16, monster.y * TILE + 44, 28, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+
+                // Draw monster HP bar
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 14px monospace";
+                ctx.fillText("HP: " + monster.hp, monster.x * TILE + 2, monster.y * TILE + 8);
+            }
+
+            if (player.dead) {
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                ctx.fillStyle = "#a00";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 36px monospace";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
+                ctx.restore();
+                return; // Stop drawing anything else
+            }
+        }
+        requestAnimationFrame(update);
+    </script>
+</body>
+
+</html>
