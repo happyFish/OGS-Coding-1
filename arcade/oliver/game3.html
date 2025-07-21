@@ -537,8 +537,14 @@
                     spawnBoss();
                     return;
                 }
+            }
 
-                // Boss defeated, check if game is complete
+            // Boss defeated - check this separately
+            if (jellyfish.length === 0 && !bossJellyfish && game.bossActive) {
+                // Boss was just defeated, reset boss flag
+                game.bossActive = false;
+
+                // Check if game is complete
                 if (game.level === 2) {
                     // Player has completed all 2 levels - win the game!
                     game.gameRunning = false;
