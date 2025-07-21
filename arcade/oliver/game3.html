@@ -131,6 +131,7 @@
             level: 1,
             jellyfishDefeated: 0,
             bossActive: false,
+            bossSpawned: false, // Track if boss has been spawned for current level
             section: 1,
             sectionsPerLevel: 3,
             enemiesPerSection: 10
@@ -515,6 +516,7 @@
 
         // Check if level is complete
         function checkLevelComplete() {
+            // First check: All regular enemies defeated and no boss exists
             if (jellyfish.length === 0 && !bossJellyfish) {
                 if (game.section < game.sectionsPerLevel) {
                     // Move to next section
@@ -532,53 +534,52 @@
                     return;
                 }
 
-                // All sections complete, spawn boss for this level
-                if (!game.bossActive) {
+                // All sections complete, spawn boss for this level (only once per level)
+                if (!game.bossActive && !game.bossSpawned) {
                     spawnBoss();
                     return;
                 }
-            }
 
-            // Boss defeated - check this separately
-            if (jellyfish.length === 0 && !bossJellyfish && game.bossActive) {
-                // Boss was just defeated, reset boss flag
-                game.bossActive = false;
+                // Boss was defeated and we're checking level completion
+                if (game.bossSpawned && !game.bossActive) {
+                    // Check if game is complete
+                    if (game.level === 2) {
+                        // Player has completed all 2 levels - win the game!
+                        game.gameRunning = false;
+                        game.score += 500; // Big bonus for completing the game
+                        statusElement.textContent = '🏆 CONGRATULATIONS! YOU WON THE GAME! All 2 levels completed! 🏆';
+                        statusElement.style.color = '#FFD700';
+                        updateUI();
+                        return;
+                    }
 
-                // Check if game is complete
-                if (game.level === 2) {
-                    // Player has completed all 2 levels - win the game!
-                    game.gameRunning = false;
-                    game.score += 500; // Big bonus for completing the game
-                    statusElement.textContent = '🏆 CONGRATULATIONS! YOU WON THE GAME! All 2 levels completed! 🏆';
-                    statusElement.style.color = '#FFD700';
+                    // Move to next level
+                    game.level++;
+                    game.section = 1; // Reset to section 1
+                    game.bossSpawned = false; // Reset boss spawned flag for new level
+                    game.score += 200 * game.level; // Level completion bonus
+
+                    // Generate new jellyfish for next level, section 1
+                    jellyfish = generateJellyfish();
+
+                    // Show level complete message
+                    statusElement.textContent = `🎉 LEVEL ${game.level - 1} COMPLETE! Welcome to Level ${game.level}! 🎉`;
+                    statusElement.style.color = '#00FF00';
+
+                    // Reset status message after 3 seconds
+                    setTimeout(() => {
+                        updateUI();
+                    }, 3000);
+
                     updateUI();
-                    return;
                 }
-
-                // Move to next level
-                game.level++;
-                game.section = 1; // Reset to section 1
-                game.score += 200 * game.level; // Level completion bonus
-
-                // Generate new jellyfish for next level, section 1
-                jellyfish = generateJellyfish();
-
-                // Show level complete message
-                statusElement.textContent = `🎉 LEVEL ${game.level - 1} COMPLETE! Welcome to Level ${game.level}! 🎉`;
-                statusElement.style.color = '#00FF00';
-
-                // Reset status message after 3 seconds
-                setTimeout(() => {
-                    updateUI();
-                }, 3000);
-
-                updateUI();
             }
         }
 
         // Spawn boss jellyfish or stingray
         function spawnBoss() {
             game.bossActive = true;
+            game.bossSpawned = true; // Mark that boss has been spawned for this level
             const bossHealth = game.level === 2 ? 200 : 100; // Stingray boss takes 200 hits, jellyfish boss takes 100
             bossJellyfish = {
                 x: getResponsiveX(0.4),
